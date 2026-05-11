@@ -32,6 +32,15 @@ if (isActionAccessible($guid, $connection2, '/modules/FinanceCustom/index.php') 
 
 $page->breadcrumbs->add(__('Finance Dashboard'));
 $gibbonSchoolYearID = intval($session->get('gibbonSchoolYearID'));
+$return = strval($_GET['return'] ?? '');
+
+if ($return === 'paymentHistoryDeleted') {
+    $page->addSuccess(__('Payment history has been deleted successfully.'));
+} elseif ($return === 'otpNoEmail') {
+    $page->addError(__('No administrator email was found. Configure delete OTP admin email(s) first.'));
+} elseif ($return === 'otpSendFail') {
+    $page->addError(__('Unable to send OTP email. Please verify mail server settings.'));
+}
 
 $dateStartInput = $_GET['dateStart'] ?? ($_POST['dateStart'] ?? '');
 $dateEndInput = $_GET['dateEnd'] ?? ($_POST['dateEnd'] ?? '');
@@ -45,6 +54,20 @@ if ($dateStart > $dateEnd) {
 }
 
 echo '<h2>'.__('Overview').'</h2>';
+
+$dangerForm = Form::create(
+    'financeDeleteAllHistory',
+    $session->get('absoluteURL').'/modules/FinanceCustom/payments_deleteOtpRequestProcess.php'
+);
+$dangerForm->addHiddenValue('address', $session->get('address'));
+$dangerRow = $dangerForm->addRow();
+$dangerRow->addContent("<span style='color:#b91c1c; font-weight:bold'>".__('Danger Zone')."</span>");
+$dangerButton = $dangerRow->addSubmit(__('Effacer toutes les données'));
+$dangerButton
+    ->setAttribute('class', 'button')
+    ->setAttribute('style', 'background:#dc2626;color:#fff;border:1px solid #dc2626;')
+    ->setAttribute('onclick', "return confirm('".__('An OTP will be sent to administrators. Continue?')."');");
+echo $dangerForm->getOutput();
 
 $form = Form::create('financeDashboardFilters', $session->get('absoluteURL').'/index.php?q=/modules/FinanceCustom/index.php');
 $form->addRow()->addHeading(__('Filters'));

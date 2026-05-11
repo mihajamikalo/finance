@@ -208,3 +208,104 @@ function financeMgmtHasAdminCodeSessionAccess($session): bool
     return true;
 }
 
+function financeMgmtGenerateOtpCode(int $length = 6): string
+{
+    $digits = '';
+    for ($i = 0; $i < $length; $i++) {
+        $digits .= strval(random_int(0, 9));
+    }
+
+    return $digits;
+}
+
+function financeMgmtGetOtpSessionState(): array
+{
+    if (!isset($_SESSION['financeCustomDeleteHistoryOtp']) || !is_array($_SESSION['financeCustomDeleteHistoryOtp'])) {
+        return [];
+    }
+
+    return $_SESSION['financeCustomDeleteHistoryOtp'];
+}
+
+function financeMgmtSetOtpSessionState(array $state): void
+{
+    if (!isset($_SESSION) || !is_array($_SESSION)) {
+        return;
+    }
+
+    $_SESSION['financeCustomDeleteHistoryOtp'] = $state;
+}
+
+function financeMgmtClearOtpSessionState(): void
+{
+    if (isset($_SESSION['financeCustomDeleteHistoryOtp'])) {
+        unset($_SESSION['financeCustomDeleteHistoryOtp']);
+    }
+}
+
+function financeMgmtGetOtpAdminEmails(PDO $connection2): array
+{
+    $configured = trim(strval(financeMgmtGetSettingValue('FinanceCustom', 'deleteOtpAdminEmails', '')));
+    if ($configured !== '') {
+        $emails = preg_split('/[,;]+/', $configured) ?: [];
+        $emails = array_values(array_filter(array_map('trim', $emails), function ($email) {
+            return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+        }));
+
+        if (!empty($emails)) {
+            return $emails;
+        }
+    }
+
+    $emails = [];
+    try {
+        $sql = "SELECT DISTINCT p.email
+            FROM gibbonPerson AS p
+            JOIN gibbonRole AS r ON (p.gibbonRoleIDPrimary=r.gibbonRoleID)
+            WHERE p.status='Full'
+                AND p.email IS NOT NULL
+                AND p.email<>''
+                AND (r.name LIKE '%Admin%' OR r.nameShort LIKE '%Admin%')
+            ORDER BY p.email";
+        $stmt = $connection2->prepare($sql);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_COLUMN, 0);
+        foreach ($rows as $email) {
+            $email = trim(strval($email));
+            if (filter_var($email, FILTER_VALIDATE_EMAIL) !== false) {
+                $emails[$email] = $email;
+            }
+        }
+    } catch (PDOException $e) {
+        // Ignore fallback lookup errors.
+    }
+
+    return array_values($emails);
+}
+
+function financeMgmtSendOtpEmail(array $emails, string $otpCode, string $requestorName, string $expiresLabel): int
+{
+    if (empty($emails)) {
+        return 0;
+    }
+
+    $subject = '[FinanceCustom] OTP - Delete Payment History';
+    $body = "A request to delete all payment history was initiated in FinanceCustom.\n\n"
+        ."Confirmation code: {$otpCode}\n"
+        ."Requested by: {$requestorName}\n"
+        ."Expires in: {$expiresLabel}\n\n"
+        ."If you did not expect this request, please contact your system administrator immediately.";
+
+    $headers = "MIME-Version: 1.0\r\n";
+    $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+
+    $sent = 0;
+    foreach ($emails as $email) {
+        if (mail($email, $subject, $body, $headers)) {
+            $sent++;
+        }
+    }
+
+    return $sent;
+}
+

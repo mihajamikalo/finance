@@ -89,6 +89,9 @@ $gibbonSetting[] = "INSERT INTO `gibbonSetting` (`scope`, `name`, `nameDisplay`,
 $gibbonSetting[] = "INSERT INTO `gibbonSetting` (`scope`, `name`, `nameDisplay`, `description`, `value`, `type`) VALUES
 ('FinanceCustom', 'adminAccessCode', 'Finance Admin Access Code', 'Hidden admin code required for advanced FinanceCustom admin pages. Store this code securely and rotate it if needed.', CONCAT(UPPER(SUBSTRING(MD5(UUID()),1,6)), '-', UPPER(SUBSTRING(MD5(RAND()),1,6))), 'text')";
 
+$gibbonSetting[] = "INSERT INTO `gibbonSetting` (`scope`, `name`, `nameDisplay`, `description`, `value`, `type`) VALUES
+('FinanceCustom', 'deleteOtpAdminEmails', 'Delete OTP Admin Emails', 'Comma-separated administrator email addresses that receive OTP codes for deleting payment history. If empty, admin-role emails are auto-discovered.', '', 'text')";
+
 // Action rows 
 // One array per action
 $actionRows[] = [
@@ -96,7 +99,7 @@ $actionRows[] = [
     'precedence'                => '0',// If it is a grouped action, the precedence controls which is highest action in group
     'category'                  => 'Dashboard', // Optional: subgroups for the right hand side module menu
     'description'               => 'Visual overview of tuition payments and outstanding balances.', // Text description
-    'URLList'                   => 'index.php', // List of pages included in this action
+    'URLList'                   => 'index.php,payments_deleteOtpRequestProcess.php,payments_deleteOtpVerify.php,payments_deleteOtpVerifyProcess.php', // List of pages included in this action
     'entryURL'                  => 'index.php', // The landing action for the page.
     'entrySidebar'              => 'Y', // Whether or not there's a sidebar on entry to the action
     'menuShow'                  => 'Y', // Whether or not this action shows up in menus or if it's hidden
