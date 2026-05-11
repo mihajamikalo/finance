@@ -150,10 +150,15 @@ try {
 
 $remainingBalance = max(0, floatval($totals['totalFee']) - ($totals['totalPaid'] + $amountPaid));
 
-$backgroundRel = strval(financeMgmtGetSettingValue('FinanceCustom', 'receiptBackgroundImage', ''));
-$backgroundAbs = '';
-if (!empty($backgroundRel)) {
-    $backgroundAbs = rtrim($session->get('absolutePath'), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . ltrim($backgroundRel, DIRECTORY_SEPARATOR);
+$templateRel = strval(financeMgmtGetSettingValue('FinanceCustom', 'receiptTemplateImage', ''));
+if (empty($templateRel)) {
+    // Backward compatibility with previous setting name.
+    $templateRel = strval(financeMgmtGetSettingValue('FinanceCustom', 'receiptBackgroundImage', ''));
+}
+
+$templateAbs = '';
+if (!empty($templateRel)) {
+    $templateAbs = rtrim($session->get('absolutePath'), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . ltrim($templateRel, DIRECTORY_SEPARATOR);
 }
 
 $generator = new ReceiptGenerator();
@@ -167,7 +172,8 @@ $generator->outputReceipt([
     'remainingBalance' => $remainingBalance,
     'receiptNumber' => $receiptNumber,
     'generatedBy' => Format::name('', $session->get('preferredName'), $session->get('surname'), 'Staff', false, true),
-    'backgroundImagePath' => $backgroundAbs,
+    'templateImagePath' => $templateAbs,
+    'backgroundImagePath' => $templateAbs,
 ], "receipt-{$receiptNumber}.pdf");
 
 exit;

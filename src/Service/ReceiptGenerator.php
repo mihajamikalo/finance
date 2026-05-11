@@ -41,113 +41,99 @@ class ReceiptGenerator
         $pdf->setPrintFooter(false);
         $pdf->AddPage();
 
-        $hasTemplate = !empty($data['backgroundImagePath']) && is_file($data['backgroundImagePath']);
-        if ($hasTemplate) {
-            // Apply full-page receipt background template.
-            $pdf->Image($data['backgroundImagePath'], 0, 0, 210, 297, '', '', '', false, 300, '', false, false, 0);
-            $this->renderTemplateOverlay($pdf, $data);
-        } else {
-            $html = $this->renderHtml($data);
-            $pdf->writeHTML($html, true, false, true, false, '');
-        }
+        // Render a native PDF layout inspired by the paper receipt template
+        // (without drawing the source image as background).
+        $html = $this->renderHtml($data);
+        $pdf->writeHTML($html, true, false, true, false, '');
 
         $pdf->Output($filename, 'I');
-    }
-
-    private function renderTemplateOverlay(\TCPDF $pdf, array $d): void
-    {
-        $studentName = trim((string)($d['studentName'] ?? ''));
-        $paymentTitle = trim((string)($d['paymentTitle'] ?? ''));
-        $amountPaid = number_format(floatval($d['amountPaid'] ?? 0), 2, '.', ' ');
-
-        // Tuned coordinates for the receipt template zones:
-        // "Recu de", "La somme de", "Pour".
-        $labelX = 34.0;
-        $valueX = 73.0;
-        $lineWidth = 120.0;
-
-        $pdf->SetTextColor(25, 25, 25);
-        $pdf->SetFont('helvetica', '', 14);
-
-        $pdf->SetXY($labelX, 100.0);
-        $pdf->Cell(35, 8, 'Recu de :', 0, 0, 'L');
-        $pdf->SetXY($valueX, 100.0);
-        $pdf->MultiCell($lineWidth, 8, $studentName, 0, 'L', false, 1);
-
-        $pdf->SetXY($labelX, 124.0);
-        $pdf->Cell(35, 8, 'La somme de :', 0, 0, 'L');
-        $pdf->SetXY($valueX, 124.0);
-        $pdf->MultiCell($lineWidth, 8, $amountPaid, 0, 'L', false, 1);
-
-        $pdf->SetXY($labelX, 148.0);
-        $pdf->Cell(35, 8, 'Pour :', 0, 0, 'L');
-        $pdf->SetXY($valueX, 148.0);
-        $pdf->MultiCell($lineWidth, 8, $paymentTitle, 0, 'L', false, 1);
     }
 
     private function renderHtml(array $d): string
     {
         $schoolName = htmlspecialchars($d['schoolName'] ?? 'School', ENT_QUOTES, 'UTF-8');
         $studentName = htmlspecialchars($d['studentName'] ?? '', ENT_QUOTES, 'UTF-8');
-        $studentID = htmlspecialchars($d['studentID'] ?? '', ENT_QUOTES, 'UTF-8');
         $title = htmlspecialchars($d['paymentTitle'] ?? '', ENT_QUOTES, 'UTF-8');
         $receiptNumber = htmlspecialchars($d['receiptNumber'] ?? '', ENT_QUOTES, 'UTF-8');
-        $generatedBy = htmlspecialchars($d['generatedBy'] ?? '', ENT_QUOTES, 'UTF-8');
-
         $amountPaid = number_format(floatval($d['amountPaid'] ?? 0), 2, '.', ',');
-        $balance = ($d['remainingBalance'] === null) ? __('N/A') : number_format(floatval($d['remainingBalance']), 2, '.', ',');
-        $paymentDate = !empty($d['paymentDate']) ? Format::date($d['paymentDate']) : '';
+        $paymentDate = !empty($d['paymentDate']) ? htmlspecialchars(Format::date($d['paymentDate']), ENT_QUOTES, 'UTF-8') : '';
 
         return "
             <style>
-                h1 { font-size: 18px; margin: 0; padding: 0; }
-                .muted { color: #666; font-size: 11px; }
-                .block { border: 1px solid #ddd; padding: 10px; }
-                table { width: 100%; border-collapse: collapse; }
-                td { padding: 6px 4px; vertical-align: top; }
-                .label { color: #555; width: 30%; }
-                .value { font-weight: bold; }
-                .big { font-size: 16px; font-weight: bold; }
-                .right { text-align: right; }
+                body { font-family: helvetica, sans-serif; color: #222; }
+                .wrapper { padding: 12mm 10mm 0 10mm; }
+                .top { width: 100%; }
+                .logo {
+                    color: #d84c74;
+                    font-size: 24px;
+                    font-weight: bold;
+                    letter-spacing: 1px;
+                }
+                .sub { font-size: 9px; color: #555; letter-spacing: 2px; }
+                .date-box {
+                    border: 1px solid #d84c74;
+                    color: #d84c74;
+                    font-size: 12px;
+                    font-weight: bold;
+                    text-align: center;
+                    width: 28mm;
+                    padding: 2mm 0;
+                }
+                .spacer { height: 12mm; }
+                table.form { width: 100%; border-collapse: collapse; }
+                table.form td { font-size: 15px; padding: 3.6mm 0; vertical-align: bottom; }
+                .label { width: 34mm; }
+                .line {
+                    border-bottom: 1px dotted #999;
+                    font-weight: bold;
+                    padding-left: 3mm;
+                }
+                .footer { margin-top: 30mm; width: 100%; }
+                .sign { width: 50mm; border-bottom: 1px dotted #999; }
+                .sign-label { padding-top: 2mm; font-size: 12px; color: #333; }
+                .meta { margin-top: 8mm; font-size: 10px; color: #666; }
             </style>
-            <h1>{$schoolName} - ".__('Payment Receipt')."</h1>
-            <div class='muted'>".__('Receipt Number').": <b>{$receiptNumber}</b></div>
-            <br/>
-            <div class='block'>
-                <table>
+            <div class='wrapper'>
+                <table class='top'>
                     <tr>
-                        <td class='label'>".__('Student')."</td>
-                        <td class='value'>{$studentName}</td>
+                        <td>
+                            <div class='logo'>{$schoolName}</div>
+                            <div class='sub'>BUSINESS SCHOOL</div>
+                        </td>
+                        <td style='width: 35mm; text-align: right; vertical-align: top;'>
+                            <div class='date-box'>DATE</div>
+                            <div style='font-size: 12px; margin-top: 2mm;'>{$paymentDate}</div>
+                        </td>
+                    </tr>
+                </table>
+
+                <div class='spacer'></div>
+                <table class='form'>
+                    <tr>
+                        <td class='label'>Reçu de :</td>
+                        <td class='line'>{$studentName}</td>
                     </tr>
                     <tr>
-                        <td class='label'>".__('Student ID')."</td>
-                        <td class='value'>{$studentID}</td>
+                        <td class='label'>La somme de :</td>
+                        <td class='line'>{$amountPaid}</td>
                     </tr>
                     <tr>
-                        <td class='label'>".__('Payment Title')."</td>
-                        <td class='value'>{$title}</td>
+                        <td class='label'>Pour :</td>
+                        <td class='line'>{$title}</td>
+                    </tr>
+                </table>
+
+                <table class='footer'>
+                    <tr>
+                        <td class='sign'></td>
+                        <td style='text-align:right; font-size: 11px;'>N° {$receiptNumber}</td>
                     </tr>
                     <tr>
-                        <td class='label'>".__('Payment Date')."</td>
-                        <td class='value'>{$paymentDate}</td>
+                        <td class='sign-label'>Signature</td>
+                        <td></td>
                     </tr>
                 </table>
             </div>
-            <br/>
-            <div class='block'>
-                <table>
-                    <tr>
-                        <td class='label big'>".__('Amount Paid')."</td>
-                        <td class='value big right'>{$amountPaid}</td>
-                    </tr>
-                    <tr>
-                        <td class='label'>".__('Remaining Balance')."</td>
-                        <td class='value right'>{$balance}</td>
-                    </tr>
-                </table>
-            </div>
-            <br/>
-            <div class='muted'>".__('Generated By').": {$generatedBy}</div>
         ";
     }
 }
