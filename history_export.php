@@ -21,6 +21,12 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 use Gibbon\Data\Validator;
 use Gibbon\Services\Format;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 require_once '../../gibbon.php';
 require_once __DIR__ . '/moduleFunctions.php';
@@ -86,24 +92,22 @@ try {
     exit;
 }
 
-$csvSafe = function (string $value): string {
-    $first = substr($value, 0, 1);
-    if (in_array($first, ['=', '+', '-', '@'], true)) {
-        return "'".$value;
+$autoloadCandidates = [
+    dirname(__DIR__, 2).'/vendor/autoload.php',
+    __DIR__.'/vendor/autoload.php',
+];
+foreach ($autoloadCandidates as $autoload) {
+    if (file_exists($autoload)) {
+        require_once $autoload;
+        break;
     }
-    return $value;
-};
+}
 
-$filename = 'finance-history-'.$dateStart.'-to-'.$dateEnd.'.xls';
-
-header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
-header('Content-Disposition: attachment; filename="'.$filename.'"');
-header('Pragma: no-cache');
-header('Expires: 0');
-
-$cellSafe = function ($value): string {
-    return htmlspecialchars(strval($value), ENT_QUOTES, 'UTF-8');
-};
+if (!class_exists(Spreadsheet::class)) {
+    $URL = $session->get('absoluteURL').'/index.php?q=/modules/FinanceCustom/index.php&return=error2';
+    header("Location: {$URL}");
+    exit;
+}
 
 $headers = [
     __('Payment Date'),
@@ -119,66 +123,84 @@ $exportRows = [];
 foreach ($rows as $row) {
     $studentName = trim(($row['preferredName'] ?? '').' '.($row['surname'] ?? ''));
     $exportRows[] = [
-        $csvSafe(Format::date($row['paymentDate'] ?? '')),
-        $csvSafe(strval($row['receiptNumber'] ?? '')),
-        $csvSafe(strval($row['studentID'] ?? '')),
-        $csvSafe($studentName),
-        $csvSafe(strval($row['yearGroup'] ?? '')),
-        $csvSafe(strval($row['paymentTitle'] ?? '')),
+        Format::date($row['paymentDate'] ?? ''),
+        strval($row['receiptNumber'] ?? ''),
+        strval($row['studentID'] ?? ''),
+        $studentName,
+        strval($row['yearGroup'] ?? ''),
+        strval($row['paymentTitle'] ?? ''),
         number_format(floatval($row['amountPaid'] ?? 0), 2, '.', ''),
     ];
 }
 
-$columnWidths = [];
-$lengthFn = function (string $text): int {
-    if (function_exists('mb_strlen')) {
-        return mb_strlen($text);
-    }
-    return strlen($text);
-};
+$spreadsheet = new Spreadsheet();
+$sheet = $spreadsheet->getActiveSheet();
+$sheet->setTitle('Payment History');
 
-foreach ($headers as $i => $headerText) {
-    $maxLen = $lengthFn(strval($headerText));
-    foreach ($exportRows as $exportRow) {
-        $maxLen = max($maxLen, $lengthFn(strval($exportRow[$i] ?? '')));
-    }
+$sheet->fromArray($headers, null, 'A1');
 
-    // Approximate Excel width using character count, clamped for readability.
-    $columnWidths[$i] = max(90, min(420, ($maxLen * 7) + 22));
-}
-
-echo "\xEF\xBB\xBF";
-echo '<html><head><meta charset="UTF-8">';
-echo '<style>
-table{border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:11pt;}
-th,td{border:1px solid #000;padding:6px 8px;}
-th{background:#D9E1F2;font-weight:bold;text-align:center;}
-td.amount{text-align:right;}
-</style>';
-echo '</head><body>';
-echo '<table>';
-echo '<colgroup>';
-foreach ($columnWidths as $widthPx) {
-    echo '<col style="width:'.$widthPx.'px">';
-}
-echo '</colgroup>';
-echo '<tr>';
-foreach ($headers as $headerText) {
-    echo '<th>'.$cellSafe($headerText).'</th>';
-}
-echo '</tr>';
-
+$rowNumber = 2;
 foreach ($exportRows as $exportRow) {
-    echo '<tr>';
-    echo '<td>'.$cellSafe($exportRow[0]).'</td>';
-    echo '<td>'.$cellSafe($exportRow[1]).'</td>';
-    echo '<td>'.$cellSafe($exportRow[2]).'</td>';
-    echo '<td>'.$cellSafe($exportRow[3]).'</td>';
-    echo '<td>'.$cellSafe($exportRow[4]).'</td>';
-    echo '<td>'.$cellSafe($exportRow[5]).'</td>';
-    echo '<td class="amount">'.$cellSafe($exportRow[6]).'</td>';
-    echo '</tr>';
+    $sheet->setCellValueExplicit('A'.$rowNumber, strval($exportRow[0]), DataType::TYPE_STRING);
+    $sheet->setCellValueExplicit('B'.$rowNumber, strval($exportRow[1]), DataType::TYPE_STRING);
+    $sheet->setCellValueExplicit('C'.$rowNumber, strval($exportRow[2]), DataType::TYPE_STRING);
+    $sheet->setCellValueExplicit('D'.$rowNumber, strval($exportRow[3]), DataType::TYPE_STRING);
+    $sheet->setCellValueExplicit('E'.$rowNumber, strval($exportRow[4]), DataType::TYPE_STRING);
+    $sheet->setCellValueExplicit('F'.$rowNumber, strval($exportRow[5]), DataType::TYPE_STRING);
+    $sheet->setCellValue('G'.$rowNumber, floatval($exportRow[6]));
+    $rowNumber++;
 }
 
-echo '</table></body></html>';
+$lastRow = max(1, $rowNumber - 1);
+
+$sheet->getStyle('A1:G1')->applyFromArray([
+    'font' => [
+        'bold' => true,
+        'color' => ['argb' => 'FF000000'],
+    ],
+    'fill' => [
+        'fillType' => Fill::FILL_SOLID,
+        'startColor' => ['argb' => 'FFD9E1F2'],
+    ],
+    'alignment' => [
+        'horizontal' => Alignment::HORIZONTAL_CENTER,
+        'vertical' => Alignment::VERTICAL_CENTER,
+    ],
+]);
+
+$sheet->getStyle('A1:G'.$lastRow)->applyFromArray([
+    'borders' => [
+        'allBorders' => [
+            'borderStyle' => Border::BORDER_THIN,
+            'color' => ['argb' => 'FF000000'],
+        ],
+    ],
+]);
+
+if ($lastRow >= 2) {
+    $sheet->getStyle('G2:G'.$lastRow)->getNumberFormat()->setFormatCode('#,##0.00');
+    $sheet->getStyle('G2:G'.$lastRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+}
+
+foreach (range('A', 'G') as $column) {
+    $sheet->getColumnDimension($column)->setAutoSize(true);
+}
+
+$sheet->setAutoFilter('A1:G1');
+$sheet->freezePane('A2');
+
+$filename = 'finance-history-'.$dateStart.'-to-'.$dateEnd.'.xlsx';
+
+header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+header('Content-Disposition: attachment; filename="'.$filename.'"');
+header('Cache-Control: max-age=0');
+header('Pragma: public');
+header('Expires: 0');
+
+$writer = new Xlsx($spreadsheet);
+$writer->save('php://output');
+
+$spreadsheet->disconnectWorksheets();
+unset($spreadsheet);
+
 exit;
