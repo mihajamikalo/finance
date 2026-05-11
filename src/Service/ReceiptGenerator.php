@@ -57,32 +57,36 @@ class ReceiptGenerator
         $receiptNumber = htmlspecialchars($d['receiptNumber'] ?? '', ENT_QUOTES, 'UTF-8');
         $amountPaid = number_format(floatval($d['amountPaid'] ?? 0), 2, '.', ',');
         $paymentDate = !empty($d['paymentDate']) ? htmlspecialchars(Format::date($d['paymentDate']), ENT_QUOTES, 'UTF-8') : '';
+        $logoPath = realpath(__DIR__.'/../../img/Logo.png');
+        $logoHtml = (!empty($logoPath) && is_file($logoPath))
+            ? '<img src="'.htmlspecialchars($logoPath, ENT_QUOTES, 'UTF-8').'" style="height:30mm;" />'
+            : '<div class="logo-fallback">'.$schoolName.'</div><div class="sub">BUSINESS SCHOOL</div>';
 
         return "
             <style>
                 body { font-family: helvetica, sans-serif; color: #222; }
                 .wrapper { padding: 12mm 10mm 0 10mm; }
                 .top { width: 100%; }
-                .logo {
-                    color: #d84c74;
-                    font-size: 24px;
-                    font-weight: bold;
-                    letter-spacing: 1px;
-                }
+                .logo-fallback { color: #d84c74; font-size: 24px; font-weight: bold; letter-spacing: 1px; }
                 .sub { font-size: 9px; color: #555; letter-spacing: 2px; }
                 .date-box {
-                    border: 1px solid #d84c74;
-                    color: #d84c74;
+                    background: #d83a56;
+                    color: #ffffff;
                     font-size: 12px;
                     font-weight: bold;
                     text-align: center;
-                    width: 28mm;
-                    padding: 2mm 0;
+                    width: 22mm;
+                    padding: 1.6mm 0;
                 }
-                .spacer { height: 12mm; }
+                .date-value {
+                    font-size: 12px;
+                    font-weight: bold;
+                    padding-left: 3mm;
+                }
+                .spacer { height: 8mm; }
                 table.form { width: 100%; border-collapse: collapse; }
-                table.form td { font-size: 15px; padding: 3.6mm 0; vertical-align: bottom; }
-                .label { width: 34mm; }
+                table.form td { font-size: 15px; padding: 4mm 0; vertical-align: bottom; }
+                .label { width: 36mm; }
                 .line {
                     border-bottom: 1px dotted #999;
                     font-weight: bold;
@@ -97,12 +101,15 @@ class ReceiptGenerator
                 <table class='top'>
                     <tr>
                         <td>
-                            <div class='logo'>{$schoolName}</div>
-                            <div class='sub'>BUSINESS SCHOOL</div>
+                            {$logoHtml}
                         </td>
-                        <td style='width: 35mm; text-align: right; vertical-align: top;'>
-                            <div class='date-box'>DATE</div>
-                            <div style='font-size: 12px; margin-top: 2mm;'>{$paymentDate}</div>
+                        <td style='width: 60mm; text-align: right; vertical-align: top;'>
+                            <table style='width:100%; border-collapse:collapse;'>
+                                <tr>
+                                    <td style='width:23mm;'><div class='date-box'>DATE</div></td>
+                                    <td class='date-value'>{$paymentDate}</td>
+                                </tr>
+                            </table>
                         </td>
                     </tr>
                 </table>
