@@ -41,15 +41,48 @@ class ReceiptGenerator
         $pdf->setPrintFooter(false);
         $pdf->AddPage();
 
-        // Optional background template image
-        if (!empty($data['backgroundImagePath']) && is_file($data['backgroundImagePath'])) {
+        $hasTemplate = !empty($data['backgroundImagePath']) && is_file($data['backgroundImagePath']);
+        if ($hasTemplate) {
+            // Apply full-page receipt background template.
             $pdf->Image($data['backgroundImagePath'], 0, 0, 210, 297, '', '', '', false, 300, '', false, false, 0);
+            $this->renderTemplateOverlay($pdf, $data);
+        } else {
+            $html = $this->renderHtml($data);
+            $pdf->writeHTML($html, true, false, true, false, '');
         }
 
-        $html = $this->renderHtml($data);
-        $pdf->writeHTML($html, true, false, true, false, '');
-
         $pdf->Output($filename, 'I');
+    }
+
+    private function renderTemplateOverlay(\TCPDF $pdf, array $d): void
+    {
+        $studentName = trim((string)($d['studentName'] ?? ''));
+        $paymentTitle = trim((string)($d['paymentTitle'] ?? ''));
+        $amountPaid = number_format(floatval($d['amountPaid'] ?? 0), 2, '.', ' ');
+
+        // Tuned coordinates for the receipt template zones:
+        // "Recu de", "La somme de", "Pour".
+        $labelX = 34.0;
+        $valueX = 73.0;
+        $lineWidth = 120.0;
+
+        $pdf->SetTextColor(25, 25, 25);
+        $pdf->SetFont('helvetica', '', 14);
+
+        $pdf->SetXY($labelX, 100.0);
+        $pdf->Cell(35, 8, 'Recu de :', 0, 0, 'L');
+        $pdf->SetXY($valueX, 100.0);
+        $pdf->MultiCell($lineWidth, 8, $studentName, 0, 'L', false, 1);
+
+        $pdf->SetXY($labelX, 124.0);
+        $pdf->Cell(35, 8, 'La somme de :', 0, 0, 'L');
+        $pdf->SetXY($valueX, 124.0);
+        $pdf->MultiCell($lineWidth, 8, $amountPaid, 0, 'L', false, 1);
+
+        $pdf->SetXY($labelX, 148.0);
+        $pdf->Cell(35, 8, 'Pour :', 0, 0, 'L');
+        $pdf->SetXY($valueX, 148.0);
+        $pdf->MultiCell($lineWidth, 8, $paymentTitle, 0, 'L', false, 1);
     }
 
     private function renderHtml(array $d): string
