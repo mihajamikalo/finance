@@ -94,20 +94,18 @@ $csvSafe = function (string $value): string {
     return $value;
 };
 
-$filename = 'finance-history-'.$dateStart.'-to-'.$dateEnd.'.csv';
+$filename = 'finance-history-'.$dateStart.'-to-'.$dateEnd.'.xls';
 
-header('Content-Type: text/csv; charset=UTF-8');
+header('Content-Type: application/vnd.ms-excel; charset=UTF-8');
 header('Content-Disposition: attachment; filename="'.$filename.'"');
 header('Pragma: no-cache');
 header('Expires: 0');
 
-$output = fopen('php://output', 'w');
-if ($output === false) {
-    exit;
-}
+$cellSafe = function ($value): string {
+    return htmlspecialchars(strval($value), ENT_QUOTES, 'UTF-8');
+};
 
-fwrite($output, "\xEF\xBB\xBF");
-fputcsv($output, [
+$headers = [
     __('Payment Date'),
     __('Receipt No.'),
     __('Student ID'),
@@ -115,11 +113,12 @@ fputcsv($output, [
     __('Year Group'),
     __('Payment Title'),
     __('Amount Paid'),
-]);
+];
 
+$exportRows = [];
 foreach ($rows as $row) {
     $studentName = trim(($row['preferredName'] ?? '').' '.($row['surname'] ?? ''));
-    fputcsv($output, [
+    $exportRows[] = [
         $csvSafe(Format::date($row['paymentDate'] ?? '')),
         $csvSafe(strval($row['receiptNumber'] ?? '')),
         $csvSafe(strval($row['studentID'] ?? '')),
@@ -127,8 +126,59 @@ foreach ($rows as $row) {
         $csvSafe(strval($row['yearGroup'] ?? '')),
         $csvSafe(strval($row['paymentTitle'] ?? '')),
         number_format(floatval($row['amountPaid'] ?? 0), 2, '.', ''),
-    ]);
+    ];
 }
 
-fclose($output);
+$columnWidths = [];
+$lengthFn = function (string $text): int {
+    if (function_exists('mb_strlen')) {
+        return mb_strlen($text);
+    }
+    return strlen($text);
+};
+
+foreach ($headers as $i => $headerText) {
+    $maxLen = $lengthFn(strval($headerText));
+    foreach ($exportRows as $exportRow) {
+        $maxLen = max($maxLen, $lengthFn(strval($exportRow[$i] ?? '')));
+    }
+
+    // Approximate Excel width using character count, clamped for readability.
+    $columnWidths[$i] = max(90, min(420, ($maxLen * 7) + 22));
+}
+
+echo "\xEF\xBB\xBF";
+echo '<html><head><meta charset="UTF-8">';
+echo '<style>
+table{border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:11pt;}
+th,td{border:1px solid #000;padding:6px 8px;}
+th{background:#D9E1F2;font-weight:bold;text-align:center;}
+td.amount{text-align:right;}
+</style>';
+echo '</head><body>';
+echo '<table>';
+echo '<colgroup>';
+foreach ($columnWidths as $widthPx) {
+    echo '<col style="width:'.$widthPx.'px">';
+}
+echo '</colgroup>';
+echo '<tr>';
+foreach ($headers as $headerText) {
+    echo '<th>'.$cellSafe($headerText).'</th>';
+}
+echo '</tr>';
+
+foreach ($exportRows as $exportRow) {
+    echo '<tr>';
+    echo '<td>'.$cellSafe($exportRow[0]).'</td>';
+    echo '<td>'.$cellSafe($exportRow[1]).'</td>';
+    echo '<td>'.$cellSafe($exportRow[2]).'</td>';
+    echo '<td>'.$cellSafe($exportRow[3]).'</td>';
+    echo '<td>'.$cellSafe($exportRow[4]).'</td>';
+    echo '<td>'.$cellSafe($exportRow[5]).'</td>';
+    echo '<td class="amount">'.$cellSafe($exportRow[6]).'</td>';
+    echo '</tr>';
+}
+
+echo '</table></body></html>';
 exit;
