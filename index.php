@@ -61,7 +61,7 @@ $form->addRow()->addSubmit(__('Apply'));
 echo $form->getOutput();
 
 $exportURL = $session->get('absoluteURL').'/modules/FinanceCustom/history_export.php'
-    .'&dateStart='.urlencode($dateStart)
+    .'?dateStart='.urlencode($dateStart)
     .'&dateEnd='.urlencode($dateEnd);
 echo "<div style='margin-top:8px'><a class='button' href='".htmlPrep($exportURL)."'>".__('Export History to Excel')."</a></div>";
 
