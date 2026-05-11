@@ -69,19 +69,10 @@ class ReceiptGenerator
                 .top { width: 100%; }
                 .logo-fallback { color: #d84c74; font-size: 24px; font-weight: bold; letter-spacing: 1px; }
                 .sub { font-size: 9px; color: #555; letter-spacing: 2px; }
-                .date-box {
-                    background: #d83a56;
-                    color: #ffffff;
-                    font-size: 12px;
-                    font-weight: bold;
-                    text-align: center;
-                    width: 22mm;
-                    padding: 1.6mm 0;
-                }
                 .date-value {
                     font-size: 12px;
                     font-weight: bold;
-                    padding-left: 3mm;
+                    padding-left: 4mm;
                 }
                 .spacer { height: 8mm; }
                 table.form { width: 100%; border-collapse: collapse; }
@@ -100,14 +91,14 @@ class ReceiptGenerator
             <div class='wrapper'>
                 <table class='top'>
                     <tr>
-                        <td>
+                        <td style='vertical-align: middle;'>
                             {$logoHtml}
                         </td>
-                        <td style='width: 60mm; text-align: right; vertical-align: top;'>
+                        <td style='width: 78mm; text-align: right; vertical-align: middle;'>
                             <table style='width:100%; border-collapse:collapse;'>
                                 <tr>
-                                    <td style='width:23mm;'><div class='date-box'>DATE</div></td>
-                                    <td class='date-value'>{$paymentDate}</td>
+                                    <td style='width:24mm; background-color:#d83a56; color:#ffffff; text-align:center; font-weight:bold; font-size:12px; padding:2.2mm 0; vertical-align:middle;'>DATE</td>
+                                    <td class='date-value' style='vertical-align:middle;'>{$paymentDate}</td>
                                 </tr>
                             </table>
                         </td>
