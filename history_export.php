@@ -110,13 +110,13 @@ if (!class_exists(Spreadsheet::class)) {
 }
 
 $headers = [
-    __('Payment Date'),
-    __('Receipt No.'),
-    __('Student ID'),
-    __('Student Name'),
-    __('Year Group'),
-    __('Payment Title'),
-    __('Amount Paid'),
+    __('Date du paiement'),
+    __('N° reçu'),
+    __('N° élève'),
+    __('Nom de l\'élève'),
+    __('Niveau'),
+    __('Libellé du paiement'),
+    __('Montant versé'),
 ];
 
 $exportRows = [];
@@ -191,16 +191,28 @@ $sheet->freezePane('A2');
 
 $filename = 'finance-history-'.$dateStart.'-to-'.$dateEnd.'.xlsx';
 
+// Écrire dans un fichier temporaire pour éviter que le buffer HTML de Gibbon
+// corrompe le binaire XLSX lors du streaming direct vers php://output.
+$tmpFile = tempnam(sys_get_temp_dir(), 'finance_export_');
+$writer = new Xlsx($spreadsheet);
+$writer->save($tmpFile);
+
+$spreadsheet->disconnectWorksheets();
+unset($spreadsheet);
+
+// Vider tous les niveaux de buffer ouverts par Gibbon avant d'envoyer le fichier.
+while (ob_get_level() > 0) {
+    ob_end_clean();
+}
+
 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 header('Content-Disposition: attachment; filename="'.$filename.'"');
+header('Content-Length: '.filesize($tmpFile));
 header('Cache-Control: max-age=0');
 header('Pragma: public');
 header('Expires: 0');
 
-$writer = new Xlsx($spreadsheet);
-$writer->save('php://output');
-
-$spreadsheet->disconnectWorksheets();
-unset($spreadsheet);
+readfile($tmpFile);
+@unlink($tmpFile);
 
 exit;

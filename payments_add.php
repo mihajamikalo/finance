@@ -79,7 +79,209 @@ $row = $form->addRow();
             '8'    => __('8 mensualités'),
         ]);
 
-$form->addRow()->addSubmit(__('Enregistrer et imprimer le reçu'));
+// Bouton personnalisé qui déclenche la modale de confirmation
+$row = $form->addRow();
+$row->addContent('
+<button type="button" id="btnConfirmPayment"
+    style="background:#1a7abf; color:#fff; border:none; padding:8px 18px; border-radius:4px; font-size:14px; cursor:pointer;">
+    '.__('Enregistrer et imprimer le reçu').'
+</button>
+');
 
 echo $form->getOutput();
+
+// ── Modale de confirmation du montant ────────────────────────────────────────
+echo '
+<style>
+#fcModalOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.5);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+}
+#fcModalOverlay.fc-open { display: flex; }
+#fcModal {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.25);
+    width: 420px;
+    max-width: 95vw;
+    padding: 0;
+    overflow: hidden;
+}
+#fcModalHeader {
+    background: #1a7abf;
+    color: #fff;
+    padding: 14px 20px;
+    font-size: 16px;
+    font-weight: bold;
+}
+#fcModalBody {
+    padding: 20px;
+}
+#fcModalBody table {
+    width: 100%;
+    border-collapse: collapse;
+}
+#fcModalBody td {
+    padding: 7px 6px;
+    border-bottom: 1px solid #eee;
+    font-size: 14px;
+}
+#fcModalBody td:first-child { color: #666; width: 45%; }
+#fcModalBody td:last-child { font-weight: bold; }
+#fcAmountBig {
+    font-size: 26px;
+    color: #1a7abf;
+    text-align: center;
+    margin: 12px 0 4px;
+    font-weight: bold;
+}
+#fcModalFooter {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 20px;
+    border-top: 1px solid #eee;
+}
+#btnFcCancel {
+    background: #e0e0e0;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+#btnFcConfirm {
+    background: #27ae60;
+    color: #fff;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+}
+#btnFcConfirm:hover { background: #219a52; }
+#btnFcCancel:hover  { background: #ccc; }
+</style>
+
+<div id="fcModalOverlay" role="dialog" aria-modal="true" aria-labelledby="fcModalHeader">
+    <div id="fcModal">
+        <div id="fcModalHeader">&#x1F4B3; '.__('Confirmation du paiement').'</div>
+        <div id="fcModalBody">
+            <div id="fcAmountBig"></div>
+            <table>
+                <tr>
+                    <td>'.__('Libellé').'</td>
+                    <td id="fcSummaryTitle">—</td>
+                </tr>
+                <tr>
+                    <td>'.__('Élève').'</td>
+                    <td id="fcSummaryStudent">—</td>
+                </tr>
+                <tr>
+                    <td>'.__('Date').'</td>
+                    <td id="fcSummaryDate">—</td>
+                </tr>
+                <tr>
+                    <td>'.__('Plan de paiement').'</td>
+                    <td id="fcSummaryPlan">—</td>
+                </tr>
+            </table>
+            <p style="margin-top:12px; font-size:12px; color:#e74c3c; font-style:italic">
+                '.__('Vérifiez le montant et les détails avant de valider. Cette opération génèrera un reçu.').'
+            </p>
+        </div>
+        <div id="fcModalFooter">
+            <button id="btnFcCancel" type="button">'.__('Corriger').'</button>
+            <button id="btnFcConfirm" type="button">&#x2713; '.__('Confirmer et enregistrer').'</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    var planLabels = {
+        "":     "—",
+        "FULL": "'.__('Paiement intégral (remise 10 %)').'",
+        "4":    "'.__('4 mensualités').'",
+        "8":    "'.__('8 mensualités').'"
+    };
+
+    function formatAmount(val) {
+        var n = parseFloat(val);
+        if (isNaN(n)) return "—";
+        return n.toLocaleString("fr-FR", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+
+    function getFinderLabel(fieldId) {
+        var el = document.getElementById(fieldId);
+        if (!el) return "—";
+        // Gibbon Finder stores tokens; try to read the displayed text from chosen tokens
+        var tokens = el.closest(".chosen-container") || el.parentNode;
+        var chosen = tokens ? tokens.querySelector(".search-choice span, .token-label") : null;
+        if (chosen) return chosen.textContent.trim();
+        // Fallback: raw value
+        return el.value || "—";
+    }
+
+    document.getElementById("btnConfirmPayment").addEventListener("click", function () {
+        var amount    = document.querySelector("[name=amountPaid]").value;
+        var title     = document.querySelector("[name=paymentTitle]").value;
+        var dateVal   = document.querySelector("[name=paymentDate]").value;
+        var planVal   = document.querySelector("[name=paymentOption]").value;
+
+        if (!amount || parseFloat(amount) <= 0) {
+            alert("'.__('Veuillez saisir un montant valide.').'");
+            document.querySelector("[name=amountPaid]").focus();
+            return;
+        }
+        if (!title.trim()) {
+            alert("'.__('Veuillez saisir un libellé.').'");
+            document.querySelector("[name=paymentTitle]").focus();
+            return;
+        }
+        if (!dateVal.trim()) {
+            alert("'.__('Veuillez saisir une date.').'");
+            return;
+        }
+
+        document.getElementById("fcAmountBig").textContent = formatAmount(amount);
+        document.getElementById("fcSummaryTitle").textContent   = title || "—";
+        document.getElementById("fcSummaryDate").textContent    = dateVal || "—";
+        document.getElementById("fcSummaryStudent").textContent = getFinderLabel("gibbonPersonIDStudent");
+        document.getElementById("fcSummaryPlan").textContent    = planLabels[planVal] || planVal || "—";
+
+        document.getElementById("fcModalOverlay").classList.add("fc-open");
+    });
+
+    document.getElementById("btnFcCancel").addEventListener("click", function () {
+        document.getElementById("fcModalOverlay").classList.remove("fc-open");
+    });
+
+    document.getElementById("btnFcConfirm").addEventListener("click", function () {
+        document.getElementById("fcModalOverlay").classList.remove("fc-open");
+        document.getElementById("financePaymentAdd").submit();
+    });
+
+    // Fermer sur clic en dehors de la modale
+    document.getElementById("fcModalOverlay").addEventListener("click", function (e) {
+        if (e.target === this) {
+            this.classList.remove("fc-open");
+        }
+    });
+
+    // Fermer avec Escape
+    document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") {
+            document.getElementById("fcModalOverlay").classList.remove("fc-open");
+        }
+    });
+})();
+</script>
+';
 
