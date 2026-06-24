@@ -83,5 +83,5 @@ FROM DUAL WHERE NOT EXISTS (
 $count++;
 $sql[$count][0] = "1.3.00";
 $sql[$count][1] = "ALTER TABLE `gibbonFinanceMgmtStudentPayment`
-  ADD COLUMN IF NOT EXISTS `paymentMethod` ENUM('BANK','MOBILE','CASH','OTHER') NOT NULL DEFAULT 'CASH'
+  ADD COLUMN `paymentMethod` ENUM('BANK','MOBILE','CASH','OTHER') NOT NULL DEFAULT 'CASH'
   AFTER `paymentDate`;end";
