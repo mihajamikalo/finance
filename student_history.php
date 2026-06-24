@@ -28,25 +28,25 @@ use Gibbon\Module\FinanceCustom\Domain\StudentPaymentGateway;
 require_once __DIR__ . '/moduleFunctions.php';
 
 if (isActionAccessible($guid, $connection2, '/modules/FinanceCustom/student_history.php') == false) {
-    $page->addError(__('You do not have access to this action.'));
+    $page->addError(__('Vous n\'avez pas accès à cette action.'));
     return;
 }
 
-$page->breadcrumbs->add(__('Student Payment History'));
+$page->breadcrumbs->add(__('Historique des paiements'));
 
 $gibbonSchoolYearID = intval($session->get('gibbonSchoolYearID'));
 $gibbonPersonIDStudent = intval($_GET['gibbonPersonIDStudent'] ?? ($_POST['gibbonPersonIDStudent'] ?? 0));
 
-echo '<h2>'.__('Student Payment History').'</h2>';
+echo '<h2>'.__('Historique des paiements').'</h2>';
 
 $ajaxUrl = $session->get('absoluteURL').'/modules/FinanceCustom/ajax_studentSearch.php';
 $form = Form::create('studentHistory', $session->get('absoluteURL').'/index.php?q=/modules/FinanceCustom/student_history.php');
 
 $row = $form->addRow();
-    $row->addLabel('gibbonPersonIDStudent', __('Student'));
+    $row->addLabel('gibbonPersonIDStudent', __('Élève'));
     $row->addFinder('gibbonPersonIDStudent')->fromAjax($ajaxUrl)->setParameter('tokenLimit', 1)->setParameter('minChars', 2)->required();
 
-$form->addRow()->addSubmit(__('View'));
+$form->addRow()->addSubmit(__('Afficher'));
 echo $form->getOutput();
 
 if ($gibbonPersonIDStudent <= 0) {
@@ -65,7 +65,7 @@ try {
 }
 
 if (empty($student)) {
-    $page->addError(__('The specified record cannot be found.'));
+    $page->addError(__('L\'enregistrement spécifié est introuvable.'));
     return;
 }
 
@@ -80,39 +80,48 @@ echo '<h3>'.Format::name('', $student['preferredName'], $student['surname'], 'St
 // ── Summary card ─────────────────────────────────────────────────────────────
 echo "<table class='smallIntBorder' cellspacing='0' style='width: 100%'>";
 echo "<tr class='head'>"
-    . "<th>".__('Total Tuition Fee')."</th>"
-    . "<th>".__('Total Paid')."</th>"
-    . "<th>".__('Remaining Balance')."</th>"
-    . "<th>".__('Status')."</th>"
+    . "<th>".__('Frais de scolarité total')."</th>"
+    . "<th>".__('Total versé')."</th>"
+    . "<th>".__('Solde restant')."</th>"
+    . "<th>".__('Statut')."</th>"
     . "</tr>";
+
+$statusTranslations = [
+    'Unpaid'        => 'Impayé',
+    'Partial'       => 'Partiel',
+    'Paid'          => 'Payé',
+    'Unconfigured'  => 'Non configuré',
+];
+$statusLabel = $statusTranslations[$totals['status']] ?? $totals['status'];
+
 echo "<tr>";
 echo "<td>".financeMgmtFormatMoney($totals['totalFee'])."</td>";
 echo "<td>".financeMgmtFormatMoney($totals['totalPaid'])."</td>";
 echo "<td>".financeMgmtFormatMoney($totals['balance'])."</td>";
-echo "<td><b>".__($totals['status'])."</b></td>";
+echo "<td><b>".$statusLabel."</b></td>";
 echo "</tr>";
 echo "</table>";
 
-// ── Payment plan details ──────────────────────────────────────────────────────
+// ── Détails du plan de paiement ───────────────────────────────────────────────
 if ($plan !== null) {
-    echo '<h2>'.__('Payment Plan').'</h2>';
+    echo '<h2>'.__('Plan de paiement').'</h2>';
 
     $planTypeLabels = [
-        'FULL'          => __('Full payment (10 % discount)'),
-        'INSTALLMENT_4' => __('4 monthly instalments'),
-        'INSTALLMENT_8' => __('8 monthly instalments'),
-        'LEGACY'        => __('Legacy (no plan)'),
+        'FULL'          => __('Paiement intégral (remise 10 %)'),
+        'INSTALLMENT_4' => __('4 mensualités'),
+        'INSTALLMENT_8' => __('8 mensualités'),
+        'LEGACY'        => __('Historique (sans plan)'),
     ];
     $planLabel = $planTypeLabels[$plan['planType']] ?? htmlPrep($plan['planType']);
 
     echo "<table class='smallIntBorder' cellspacing='0' style='width: 100%'>";
     echo "<tr class='head'>"
-        . "<th>".__('Plan Type')."</th>"
-        . "<th style='text-align:right'>".__('Original Fee')."</th>"
-        . "<th style='text-align:right'>".__('Discount (10 %)')."</th>"
-        . "<th style='text-align:right'>".__('Final Fee')."</th>"
-        . "<th style='text-align:right'>".__('Initial Deposit')."</th>"
-        . "<th style='text-align:right'>".__('Monthly Instalment')."</th>"
+        . "<th>".__('Type de plan')."</th>"
+        . "<th style='text-align:right'>".__('Frais initiaux')."</th>"
+        . "<th style='text-align:right'>".__('Remise (10 %)')."</th>"
+        . "<th style='text-align:right'>".__('Frais final')."</th>"
+        . "<th style='text-align:right'>".__('Acompte initial')."</th>"
+        . "<th style='text-align:right'>".__('Mensualité')."</th>"
         . "</tr>";
     echo "<tr>";
     echo "<td>".$planLabel."</td>";
@@ -121,29 +130,29 @@ if ($plan !== null) {
     echo "<td style='text-align:right'><b>".financeMgmtFormatMoney(floatval($plan['tuitionFeeFinal']))."</b></td>";
     echo "<td style='text-align:right'>".financeMgmtFormatMoney(floatval($plan['requiredDeposit']))."</td>";
     echo "<td style='text-align:right'>"
-        . (floatval($plan['installmentAmount']) > 0 ? financeMgmtFormatMoney(floatval($plan['installmentAmount'])) : __('N/A'))
+        . (floatval($plan['installmentAmount']) > 0 ? financeMgmtFormatMoney(floatval($plan['installmentAmount'])) : __('N/D'))
         . "</td>";
     echo "</tr>";
     echo "</table>";
 
-    // ── Instalment schedule with carry-forward credit ─────────────────────────
+    // ── Calendrier des échéances avec report de crédit ────────────────────────
     if ($evaluation !== null && !empty($evaluation['installments'])) {
-        echo '<h3>'.__('Instalment Schedule').'</h3>';
+        echo '<h3>'.__('Calendrier des échéances').'</h3>';
         echo '<p class="text-sm text-gray-600">'
-            . __('Credit carried forward: any surplus from a payment is automatically deducted from the next instalment.')
+            . __('Crédit reporté : tout surplus d\'un paiement est automatiquement déduit de la prochaine échéance.')
             . '</p>';
 
         echo "<table class='smallIntBorder' cellspacing='0' style='width: 100%'>";
         echo "<tr class='head'>"
             . "<th>#</th>"
-            . "<th>".__('Label')."</th>"
-            . "<th>".__('Due Date')."</th>"
-            . "<th style='text-align:right'>".__('Expected')."</th>"
-            . "<th style='text-align:right'>".__('Credit Carried')."</th>"
-            . "<th style='text-align:right'>".__('Payable')."</th>"
-            . "<th style='text-align:right'>".__('Credit After')."</th>"
-            . "<th style='text-align:right'>".__('Outstanding')."</th>"
-            . "<th>".__('Status')."</th>"
+            . "<th>".__('Libellé')."</th>"
+            . "<th>".__('Date d\'échéance')."</th>"
+            . "<th style='text-align:right'>".__('Attendu')."</th>"
+            . "<th style='text-align:right'>".__('Crédit reporté')."</th>"
+            . "<th style='text-align:right'>".__('Exigible')."</th>"
+            . "<th style='text-align:right'>".__('Crédit résiduel')."</th>"
+            . "<th style='text-align:right'>".__('Restant dû')."</th>"
+            . "<th>".__('Statut')."</th>"
             . "</tr>";
 
         foreach ($evaluation['installments'] as $item) {
@@ -152,16 +161,16 @@ if ($plan !== null) {
             $isFuture = ($item['isDue'] === 'N');
 
             if ($isLate) {
-                $statusLabel = __('Late');
+                $statusLabel = __('En retard');
                 $statusColor = '#e74c3c';
             } elseif ($isPaid) {
-                $statusLabel = __('Paid');
+                $statusLabel = __('Payé');
                 $statusColor = '#27ae60';
             } elseif ($isFuture) {
-                $statusLabel = __('Upcoming');
+                $statusLabel = __('À venir');
                 $statusColor = '#95a5a6';
             } else {
-                $statusLabel = __('Due');
+                $statusLabel = __('Échu');
                 $statusColor = '#f39c12';
             }
 
@@ -207,31 +216,31 @@ if (!empty($rows) && $totals['totalFee'] !== null) {
     }
 }
 
-echo '<h2>'.__('Payments').'</h2>';
+echo '<h2>'.__('Paiements').'</h2>';
 
 $table = DataTable::create('studentPayments');
 $table->addColumn('paymentDate', __('Date'))->format(function ($row) {
     return Format::date($row['paymentDate']);
 });
-$table->addColumn('paymentTitle', __('Title'))->format(function ($row) {
+$table->addColumn('paymentTitle', __('Libellé'))->format(function ($row) {
     return htmlPrep($row['paymentTitle']);
 });
-$table->addColumn('amountPaid', __('Amount'))->format(function ($row) {
+$table->addColumn('amountPaid', __('Montant'))->format(function ($row) {
     return "<div style='text-align:right'>".number_format($row['amountPaid'], 2, '.', ',')."</div>";
 });
-$table->addColumn('remaining', __('Remaining'))->format(function ($row) use ($running) {
+$table->addColumn('remaining', __('Restant'))->format(function ($row) use ($running) {
     $id = intval($row['gibbonFinanceMgmtStudentPaymentID']);
-    return "<div style='text-align:right'>".(isset($running[$id]) ? number_format($running[$id], 2, '.', ',') : __('N/A'))."</div>";
+    return "<div style='text-align:right'>".(isset($running[$id]) ? number_format($running[$id], 2, '.', ',') : __('N/D'))."</div>";
 });
-$table->addColumn('receiptPrinted', __('Receipt'))->format(function ($row) use ($session) {
+$table->addColumn('receiptPrinted', __('Reçu'))->format(function ($row) use ($session) {
     if ($row['receiptPrinted'] === 'Y') {
         $receiptNumber = htmlPrep($row['receiptNumber'] ?? '');
         $link = $session->get('absoluteURL').'/modules/FinanceCustom/receipt_print.php?gibbonFinanceMgmtStudentPaymentID='.$row['gibbonFinanceMgmtStudentPaymentID'];
-        return "<a href='".htmlPrep($link)."'>".__('Reprint')."</a><br/><span style='font-size: 85%; font-style: italic'>{$receiptNumber}</span>";
+        return "<a href='".htmlPrep($link)."'>".__('Réimprimer')."</a><br/><span style='font-size: 85%; font-style: italic'>{$receiptNumber}</span>";
     }
-    return __('Not Generated');
+    return __('Non généré');
 });
-$table->addColumn('createdBy', __('Recorded By'))->format(function ($row) {
+$table->addColumn('createdBy', __('Saisi par'))->format(function ($row) {
     return Format::name('', $row['createdByPreferredName'] ?? '', $row['createdBySurname'] ?? '', 'Staff', false, true);
 });
 

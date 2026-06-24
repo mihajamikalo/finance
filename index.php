@@ -30,7 +30,7 @@ if (isActionAccessible($guid, $connection2, '/modules/FinanceCustom/index.php') 
     return;
 }
 
-$page->breadcrumbs->add(__('Finance Dashboard'));
+$page->breadcrumbs->add(__('Tableau de bord Finance'));
 $gibbonSchoolYearID = intval($session->get('gibbonSchoolYearID'));
 
 $dateStartInput = $_GET['dateStart'] ?? ($_POST['dateStart'] ?? '');
@@ -44,26 +44,26 @@ if ($dateStart > $dateEnd) {
     $dateEnd = $swap;
 }
 
-echo '<h2>'.__('Overview').'</h2>';
+echo '<h2>'.__('Vue d\'ensemble').'</h2>';
 
 $form = Form::create('financeDashboardFilters', $session->get('absoluteURL').'/index.php?q=/modules/FinanceCustom/index.php');
-$form->addRow()->addHeading(__('Filters'));
+$form->addRow()->addHeading(__('Filtres'));
 
 $row = $form->addRow();
-    $row->addLabel('dateStart', __('Start Date'));
+    $row->addLabel('dateStart', __('Date de début'));
     $row->addDate('dateStart')->setValue(Format::date($dateStart))->required();
 
 $row = $form->addRow();
-    $row->addLabel('dateEnd', __('End Date'));
+    $row->addLabel('dateEnd', __('Date de fin'));
     $row->addDate('dateEnd')->setValue(Format::date($dateEnd))->required();
 
-$form->addRow()->addSubmit(__('Apply'));
+$form->addRow()->addSubmit(__('Appliquer'));
 echo $form->getOutput();
 
 $exportURL = $session->get('absoluteURL').'/modules/FinanceCustom/history_export.php'
     .'?dateStart='.urlencode($dateStart)
     .'&dateEnd='.urlencode($dateEnd);
-echo "<div style='margin-top:8px'><a class='button' href='".htmlPrep($exportURL)."'>".__('Export History to Excel')."</a></div>";
+echo "<div style='margin-top:8px'><a class='button' href='".htmlPrep($exportURL)."'>".__('Exporter l\'historique en Excel')."</a></div>";
 
 // Totals
 try {
@@ -226,35 +226,35 @@ try {
     });
 
 } catch (PDOException $e) {
-    $page->addError(__('A database error occurred.'));
+    $page->addError(__('Une erreur de base de données s\'est produite.'));
     return;
 }
 
 echo "<div class='flex flex-wrap gap-4 my-4'>";
 
-// KPI 1 – Total received in selected range
+// KPI 1 – Total reçu sur la période sélectionnée
 echo "<div class='w-full md:w-1/4 bg-white border rounded p-4'>";
-echo "<div class='text-sm text-gray-600'>".__('Total Payments Received')."</div>";
+echo "<div class='text-sm text-gray-600'>".__('Total des paiements reçus')."</div>";
 echo "<div class='text-2xl font-bold'>".number_format($totalPayments, 2, '.', ',')."</div>";
-echo "<div class='text-xs text-gray-500 mt-1'>".sprintf(__('From %1$s to %2$s'), Format::date($dateStart), Format::date($dateEnd))."</div>";
+echo "<div class='text-xs text-gray-500 mt-1'>".sprintf(__('Du %1$s au %2$s'), Format::date($dateStart), Format::date($dateEnd))."</div>";
 echo "</div>";
 
-// KPI 2 – Expected this month
+// KPI 2 – Attendu ce mois
 echo "<div class='w-full md:w-1/4 bg-white border rounded p-4'>";
-echo "<div class='text-sm text-gray-600'>".__('Expected This Month')."</div>";
+echo "<div class='text-sm text-gray-600'>".__('Attendu ce mois')."</div>";
 echo "<div class='text-2xl font-bold'>".number_format($monthlyExpected, 2, '.', ',')."</div>";
 echo "</div>";
 
-// KPI 3 – Received this month
+// KPI 3 – Reçu ce mois
 echo "<div class='w-full md:w-1/4 bg-white border rounded p-4'>";
-echo "<div class='text-sm text-gray-600'>".__('Received This Month')."</div>";
+echo "<div class='text-sm text-gray-600'>".__('Reçu ce mois')."</div>";
 echo "<div class='text-2xl font-bold'>".number_format($monthlyReceived, 2, '.', ',')."</div>";
 echo "</div>";
 
-// KPI 4 – Overdue today (red if non-zero)
+// KPI 4 – Montant en retard (rouge si non nul)
 $overdueStyle = ($monthlyOverdue > 0.009) ? 'color:#e74c3c' : '';
 echo "<div class='w-full md:w-1/4 bg-white border rounded p-4'>";
-echo "<div class='text-sm text-gray-600'>".__('Overdue Amount (Today)')."</div>";
+echo "<div class='text-sm text-gray-600'>".__('Montant en retard (aujourd\'hui)')."</div>";
 echo "<div class='text-2xl font-bold' style='{$overdueStyle}'>".number_format($monthlyOverdue, 2, '.', ',')."</div>";
 echo "</div>";
 
@@ -286,11 +286,11 @@ $chartYG->addDataset('payments')->setData($dataYG);
 
 // Monthly Expected / Received / Overdue bar chart
 $chartMonthly = Chart::create('monthlyFinanceStatus', 'bar')
-    ->setLabels([__('Expected'), __('Received'), __('Overdue')])
+    ->setLabels([__('Attendu'), __('Reçu'), __('En retard')])
     ->setLegend(['display' => false])
     ->setOptions(['responsive' => true, 'maintainAspectRatio' => false])
     ->setColorOpacity(0.75);
-$chartMonthly->addDataset(__('This month'))->setData([
+$chartMonthly->addDataset(__('Ce mois'))->setData([
     round($monthlyExpected, 2),
     round($monthlyReceived, 2),
     round($monthlyOverdue,  2),
@@ -299,17 +299,17 @@ $chartMonthly->addDataset(__('This month'))->setData([
 echo '<div class="flex flex-wrap gap-6 mt-6">';
 
 echo '<div class="w-full md:w-1/3 bg-white border rounded p-4">';
-echo '<h3 class="mb-2">'.__('Payments by Date').'</h3>';
+echo '<h3 class="mb-2">'.__('Paiements par date').'</h3>';
 echo '<div style="height: 240px">'.$chartDate->render().'</div>';
 echo '</div>';
 
 echo '<div class="w-full md:w-1/3 bg-white border rounded p-4">';
-echo '<h3 class="mb-2">'.__('Payments by Year Group').'</h3>';
+echo '<h3 class="mb-2">'.__('Paiements par niveau').'</h3>';
 echo '<div style="height: 240px">'.$chartYG->render().'</div>';
 echo '</div>';
 
 echo '<div class="w-full md:w-1/3 bg-white border rounded p-4">';
-echo '<h3 class="mb-2">'.__('Current Month: Expected / Received / Overdue').'</h3>';
+echo '<h3 class="mb-2">'.__('Mois en cours : Attendu / Reçu / En retard').'</h3>';
 echo '<div style="height: 240px">'.$chartMonthly->render().'</div>';
 echo '</div>';
 
@@ -317,12 +317,12 @@ echo '</div>';
 
 echo '<div class="flex flex-wrap gap-6 mt-6">';
 echo '<div class="w-full md:w-1/2 bg-white border rounded p-4">';
-echo '<h3 class="mb-3">'.__('Recent Transactions').'</h3>';
+echo '<h3 class="mb-3">'.__('Transactions récentes').'</h3>';
 if (empty($recent)) {
-    echo "<div class='text-sm text-gray-600'>".__('There are no records to display.')."</div>";
+    echo "<div class='text-sm text-gray-600'>".__('Aucun enregistrement à afficher.')."</div>";
 } else {
     echo "<table class='smallIntBorder' cellspacing='0' style='width:100%'>";
-    echo "<tr class='head'><th>".__('Date')."</th><th>".__('Student')."</th><th>".__('Title')."</th><th style='text-align:right'>".__('Amount')."</th></tr>";
+    echo "<tr class='head'><th>".__('Date')."</th><th>".__('Élève')."</th><th>".__('Libellé')."</th><th style='text-align:right'>".__('Montant')."</th></tr>";
     foreach ($recent as $r) {
         $student = Format::name('', $r['preferredName'], $r['surname'], 'Student', true).' <span class="text-xs text-gray-500">('.htmlPrep($r['studentID']).')</span>';
         echo "<tr>";
@@ -341,11 +341,11 @@ if (empty($recent)) {
 
         echo "<div style='margin-top: 10px; text-align: right'>";
         if ($unpaidPage > 1) {
-            echo "<a href='".htmlPrep($baseLink.'&unpaidPage='.($unpaidPage - 1))."'>".__('Previous')."</a> ";
+            echo "<a href='".htmlPrep($baseLink.'&unpaidPage='.($unpaidPage - 1))."'>".__('Précédent')."</a> ";
         }
-        echo "<span style='margin: 0 8px'>".sprintf(__('Page %1$s of %2$s'), strval($unpaidPage), strval($outstandingPages))."</span>";
+        echo "<span style='margin: 0 8px'>".sprintf(__('Page %1$s sur %2$s'), strval($unpaidPage), strval($outstandingPages))."</span>";
         if ($unpaidPage < $outstandingPages) {
-            echo " <a href='".htmlPrep($baseLink.'&unpaidPage='.($unpaidPage + 1))."'>".__('Next')."</a>";
+            echo " <a href='".htmlPrep($baseLink.'&unpaidPage='.($unpaidPage + 1))."'>".__('Suivant')."</a>";
         }
         echo "</div>";
     }
@@ -353,12 +353,12 @@ if (empty($recent)) {
 echo '</div>';
 
 echo '<div class="w-full md:w-1/2 bg-white border rounded p-4">';
-echo '<h3 class="mb-3">'.__('Students With Unpaid Balances').'</h3>';
+echo '<h3 class="mb-3">'.__('Élèves avec solde impayé').'</h3>';
 if (empty($outstanding)) {
-    echo "<div class='text-sm text-gray-600'>".__('There are no records to display.')."</div>";
+    echo "<div class='text-sm text-gray-600'>".__('Aucun enregistrement à afficher.')."</div>";
 } else {
     echo "<table class='smallIntBorder' cellspacing='0' style='width:100%'>";
-    echo "<tr class='head'><th>".__('Student')."</th><th>".__('Year Group')."</th><th style='text-align:right'>".__('Balance')."</th></tr>";
+    echo "<tr class='head'><th>".__('Élève')."</th><th>".__('Niveau')."</th><th style='text-align:right'>".__('Solde')."</th></tr>";
     foreach ($outstanding as $o) {
         $studentLabel = Format::name('', $o['preferredName'], $o['surname'], 'Student', true).' <span class="text-xs text-gray-500">('.htmlPrep($o['studentID']).')</span>';
         $balance = number_format($o['balance'], 2, '.', ',');
@@ -374,25 +374,25 @@ if (empty($outstanding)) {
 echo '</div>';
 echo '</div>';
 
-// ── Late Payments alert section ───────────────────────────────────────────────
+// ── Section alertes paiements en retard ──────────────────────────────────────
 echo '<div class="w-full bg-white border rounded p-4 mt-6">';
-echo '<h3 class="mb-3">'.__('Late Payments').'</h3>';
+echo '<h3 class="mb-3">'.__('Paiements en retard').'</h3>';
 if (empty($overdueStudents)) {
-    echo "<div class='text-sm text-gray-600'>".__('All payment plans are up to date.')."</div>";
+    echo "<div class='text-sm text-gray-600'>".__('Tous les plans de paiement sont à jour.')."</div>";
 } else {
     echo "<table class='smallIntBorder' cellspacing='0' style='width:100%'>";
     echo "<tr class='head'>"
-        . "<th>".__('Student')."</th>"
-        . "<th>".__('Class')."</th>"
-        . "<th style='text-align:right'>".__('Months Late')."</th>"
-        . "<th style='text-align:right'>".__('Amount Overdue')."</th>"
-        . "<th>".__('Last Payment')."</th>"
-        . "<th>".__('Status')."</th>"
+        . "<th>".__('Élève')."</th>"
+        . "<th>".__('Classe')."</th>"
+        . "<th style='text-align:right'>".__('Mois de retard')."</th>"
+        . "<th style='text-align:right'>".__('Montant dû')."</th>"
+        . "<th>".__('Dernier paiement')."</th>"
+        . "<th>".__('Statut')."</th>"
         . "</tr>";
     foreach ($overdueStudents as $o) {
         $isCritical = ($o['severity'] === 'critical');
         $color      = $isCritical ? '#e74c3c' : '#f39c12';
-        $label      = $isCritical ? __('Critical') : __('Moderate');
+        $label      = $isCritical ? __('Critique') : __('Modéré');
         $histLink   = $session->get('absoluteURL')
             . '/index.php?q=/modules/FinanceCustom/student_history.php&gibbonPersonIDStudent='
             . $o['gibbonPersonIDStudent'];
@@ -403,7 +403,7 @@ if (empty($overdueStudents)) {
         echo "<td>".htmlPrep($o['className'])."</td>";
         echo "<td style='text-align:right; font-weight:bold; color:{$color}'>".intval($o['lateMonths'])."</td>";
         echo "<td style='text-align:right'>".number_format($o['overdueAmount'], 2, '.', ',')."</td>";
-        echo "<td>".(!empty($o['lastPaymentDate']) ? Format::date($o['lastPaymentDate']) : __('No payment'))."</td>";
+        echo "<td>".(!empty($o['lastPaymentDate']) ? Format::date($o['lastPaymentDate']) : __('Aucun paiement'))."</td>";
         echo "<td><span style='color:{$color}; font-weight:bold'>".$label."</span></td>";
         echo "</tr>";
     }

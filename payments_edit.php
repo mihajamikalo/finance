@@ -9,7 +9,7 @@ use Gibbon\Services\Format;
 require_once __DIR__ . '/moduleFunctions.php';
 
 if (isActionAccessible($guid, $connection2, '/modules/FinanceCustom/admin_console.php') == false) {
-    $page->addError(__('You do not have access to this action.'));
+    $page->addError(__('Vous n\'avez pas accès à cette action.'));
     return;
 }
 
@@ -36,14 +36,14 @@ try {
 }
 
 if (empty($payment)) {
-    $page->addError(__('The specified record cannot be found.'));
+    $page->addError(__('L\'enregistrement spécifié est introuvable.'));
     return;
 }
 
-$page->breadcrumbs->add(__('Edit Payment'));
+$page->breadcrumbs->add(__('Modifier le paiement'));
 
-echo '<h2>'.__('Edit Payment').'</h2>';
-echo '<p><b>'.__('Student').':</b> '.Format::name('', $payment['preferredName'], $payment['surname'], 'Student', true).' ('.htmlPrep($payment['studentID']).')</p>';
+echo '<h2>'.__('Modifier le paiement').'</h2>';
+echo '<p><b>'.__('Élève').' :</b> '.Format::name('', $payment['preferredName'], $payment['surname'], 'Student', true).' ('.htmlPrep($payment['studentID']).')</p>';
 
 $form = Form::create('financePaymentEdit', $session->get('absoluteURL').'/modules/FinanceCustom/payments_editProcess.php');
 $form->addHiddenValue('address', $session->get('address'));
@@ -51,16 +51,16 @@ $form->addHiddenValue('gibbonFinanceMgmtStudentPaymentID', strval($paymentID));
 $form->addHiddenValue('returnTo', $session->get('absoluteURL').'/index.php?q=/modules/FinanceCustom/admin_console.php');
 
 $row = $form->addRow();
-    $row->addLabel('paymentTitle', __('Payment Title'));
+    $row->addLabel('paymentTitle', __('Libellé du paiement'));
     $row->addTextField('paymentTitle')->maxLength(100)->setValue(strval($payment['paymentTitle']))->required();
 
 $row = $form->addRow();
-    $row->addLabel('amountPaid', __('Amount Paid'));
+    $row->addLabel('amountPaid', __('Montant versé'));
     $row->addNumber('amountPaid')->decimalPlaces(2)->setValue(strval($payment['amountPaid']))->required()->minimum(0.01);
 
 $row = $form->addRow();
-    $row->addLabel('paymentDate', __('Payment Date'));
+    $row->addLabel('paymentDate', __('Date du paiement'));
     $row->addDate('paymentDate')->setValue(Format::date($payment['paymentDate']))->required();
 
-$form->addRow()->addSubmit(__('Save Changes'));
+$form->addRow()->addSubmit(__('Enregistrer les modifications'));
 echo $form->getOutput();

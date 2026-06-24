@@ -311,7 +311,7 @@ function financeMgmtBuildInstallmentSchedule(array $plan): array
     if ($requiredDeposit > 0.009) {
         $schedule[] = [
             'installmentNumber' => $number++,
-            'label'             => __('Initial Deposit'),
+            'label'             => __('Acompte initial'),
             'dueDate'           => $startDate->format('Y-m-d'),
             'expectedAmount'    => min($requiredDeposit, $tuitionFinal),
         ];
@@ -327,7 +327,7 @@ function financeMgmtBuildInstallmentSchedule(array $plan): array
                 : $startDate->format('Y-m-d');
             $schedule[] = [
                 'installmentNumber' => $number,
-                'label'             => __('Full Payment'),
+                'label'             => __('Paiement intégral'),
                 'dueDate'           => $dueDate,
                 'expectedAmount'    => $remaining,
             ];
@@ -335,7 +335,7 @@ function financeMgmtBuildInstallmentSchedule(array $plan): array
             // Edge case: zero-amount plan.
             $schedule[] = [
                 'installmentNumber' => $number,
-                'label'             => __('Full Payment'),
+                'label'             => __('Paiement intégral'),
                 'dueDate'           => $startDate->format('Y-m-d'),
                 'expectedAmount'    => $tuitionFinal,
             ];
@@ -348,7 +348,7 @@ function financeMgmtBuildInstallmentSchedule(array $plan): array
     foreach ($monthlyParts as $i => $monthAmount) {
         $schedule[] = [
             'installmentNumber' => $number++,
-            'label'             => sprintf(__('Instalment %1$s'), $i + 1),
+            'label'             => sprintf(__('Mensualité %1$s'), $i + 1),
             'dueDate'           => $startDate->modify('+' . ($i + 1) . ' month')->format('Y-m-d'),
             'expectedAmount'    => $monthAmount,
         ];

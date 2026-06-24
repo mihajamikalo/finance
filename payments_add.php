@@ -25,19 +25,19 @@ use Gibbon\Services\Format;
 require_once __DIR__ . '/moduleFunctions.php';
 
 if (isActionAccessible($guid, $connection2, '/modules/FinanceCustom/payments_add.php') == false) {
-    $page->addError(__('You do not have access to this action.'));
+    $page->addError(__('Vous n\'avez pas accès à cette action.'));
     return;
 }
 
-$page->breadcrumbs->add(__('Add Payment'));
+$page->breadcrumbs->add(__('Enregistrer un paiement'));
 
-echo '<h2>'.__('Record Payment').'</h2>';
+echo '<h2>'.__('Saisie de paiement').'</h2>';
 
-// Show the configured deposit so the Finance team knows what to expect.
+// Afficher l'acompte configuré pour que l'équipe Finance sache ce qui est attendu.
 $configuredDeposit = financeMgmtGetConfiguredInitialDeposit();
 echo "<p class='text-sm text-gray-600' style='margin-bottom:12px'>"
     . sprintf(
-        __('Configured initial deposit for instalment plans: <strong>%1$s</strong>'),
+        __('Acompte initial configuré pour les plans de paiement : <strong>%1$s</strong>'),
         number_format($configuredDeposit, 2, '.', ',')
     )
     . "</p>";
@@ -46,12 +46,12 @@ $form = Form::create('financePaymentAdd', $session->get('absoluteURL').'/modules
 $form->addHiddenValue('address', $session->get('address'));
 
 $row = $form->addRow();
-    $row->addLabel('paymentTitle', __('Payment Title'));
+    $row->addLabel('paymentTitle', __('Libellé du paiement'));
     $row->addTextField('paymentTitle')->maxLength(100)->required();
 
 $ajaxUrl = $session->get('absoluteURL').'/modules/FinanceCustom/ajax_studentSearch.php';
 $row = $form->addRow();
-    $row->addLabel('gibbonPersonIDStudent', __('Student'));
+    $row->addLabel('gibbonPersonIDStudent', __('Élève'));
     $row->addFinder('gibbonPersonIDStudent')
         ->fromAjax($ajaxUrl)
         ->setParameter('tokenLimit', 1)
@@ -59,27 +59,27 @@ $row = $form->addRow();
         ->required();
 
 $row = $form->addRow();
-    $row->addLabel('amountPaid', __('Amount Paid'));
+    $row->addLabel('amountPaid', __('Montant versé'));
     $row->addNumber('amountPaid')->decimalPlaces(2)->required()->minimum(0.01);
 
 $row = $form->addRow();
-    $row->addLabel('paymentDate', __('Payment Date'));
+    $row->addLabel('paymentDate', __('Date du paiement'));
     $row->addDate('paymentDate')->setValue(Format::date(date('Y-m-d')))->required();
 
-// Payment-plan selector — only shown on the first payment; the process script
-// auto-detects whether a plan already exists and ignores this field if so.
+// Sélecteur de plan — seulement au premier paiement ; le script de traitement
+// détecte automatiquement si un plan existe déjà et ignore ce champ si c'est le cas.
 $row = $form->addRow();
-    $row->addLabel('paymentOption', __('Payment Plan'))
-        ->description(__('Required for the very first payment. Ignored for subsequent payments.'));
+    $row->addLabel('paymentOption', __('Plan de paiement'))
+        ->description(__('Obligatoire lors du premier paiement. Ignoré pour les paiements suivants.'));
     $row->addSelect('paymentOption')
         ->fromArray([
-            ''     => __('— choose a plan (first payment only) —'),
-            'FULL' => __('Full payment with 10 % discount'),
-            '4'    => __('4 monthly instalments'),
-            '8'    => __('8 monthly instalments'),
+            ''     => __('— choisir un plan (premier paiement uniquement) —'),
+            'FULL' => __('Paiement intégral avec remise de 10 %'),
+            '4'    => __('4 mensualités'),
+            '8'    => __('8 mensualités'),
         ]);
 
-$form->addRow()->addSubmit(__('Save & Print Receipt'));
+$form->addRow()->addSubmit(__('Enregistrer et imprimer le reçu'));
 
 echo $form->getOutput();
 

@@ -25,15 +25,15 @@ use Gibbon\Services\Format;
 require_once __DIR__ . '/moduleFunctions.php';
 
 if (isActionAccessible($guid, $connection2, '/modules/FinanceCustom/tuitionFees_manage.php') == false) {
-    $page->addError(__('You do not have access to this action.'));
+    $page->addError(__('Vous n\'avez pas accès à cette action.'));
     return;
 }
 
-$page->breadcrumbs->add(__('Manage Tuition Fees'));
+$page->breadcrumbs->add(__('Gérer les frais de scolarité'));
 $gibbonSchoolYearID = intval($session->get('gibbonSchoolYearID'));
 
-echo '<h2>'.__('Tuition Fees by Year Group').'</h2>';
-echo '<p>'.__('Set one tuition fee per year group for the current school year.').'</p>';
+echo '<h2>'.__('Frais de scolarité par niveau').'</h2>';
+echo '<p>'.__('Définissez un montant de frais de scolarité par niveau pour l\'année scolaire en cours.').'</p>';
 
 try {
     $sqlYG = "SELECT gibbonYearGroupID, name, nameShort
@@ -51,7 +51,7 @@ try {
         $fees[intval($f['gibbonYearGroupID'])] = $f;
     }
 } catch (PDOException $e) {
-    $page->addError(__('A database error occurred.'));
+    $page->addError(__('Une erreur de base de données s\'est produite.'));
     return;
 }
 
@@ -60,17 +60,17 @@ $currentDeposit = financeMgmtGetConfiguredInitialDeposit();
 $form = Form::create('tuitionFees', $session->get('absoluteURL').'/modules/FinanceCustom/tuitionFees_manageProcess.php');
 $form->addHiddenValue('address', $session->get('address'));
 
-$form->addRow()->addHeading(__('Instalment Settings'));
+$form->addRow()->addHeading(__('Paramètres des versements échelonnés'));
 
 $row = $form->addRow();
-    $row->addLabel('installmentInitialDeposit', __('Required Initial Deposit'))
-        ->description(__('Amount that students must pay upfront when choosing a 4- or 8-instalment plan.'));
+    $row->addLabel('installmentInitialDeposit', __('Acompte initial requis'))
+        ->description(__('Montant que les élèves doivent verser lors du choix d\'un plan en 4 ou 8 mensualités.'));
     $row->addNumber('installmentInitialDeposit')
         ->decimalPlaces(2)
         ->minimum(0)
         ->setValue(strval($currentDeposit));
 
-$form->addRow()->addHeading(__('Fees'));
+$form->addRow()->addHeading(__('Frais'));
 
 foreach ($yearGroups as $yg) {
     $id = intval($yg['gibbonYearGroupID']);
@@ -82,10 +82,10 @@ foreach ($yearGroups as $yg) {
         $row->addNumber('fee['.$id.']')->decimalPlaces(2)->setValue($amount)->required()->minimum(0);
 
     $row = $form->addRow();
-        $row->addLabel('active_'.$id, __('Active'));
+        $row->addLabel('active_'.$id, __('Actif'));
         $row->addYesNo('active['.$id.']')->selected($active);
 }
 
-$form->addRow()->addSubmit(__('Save'));
+$form->addRow()->addSubmit(__('Enregistrer'));
 echo $form->getOutput();
 

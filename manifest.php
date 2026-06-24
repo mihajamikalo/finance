@@ -21,7 +21,7 @@ along with this program.  If not, see <http:// www.gnu.org/licenses/>.
 
 // Basic variables
 $name        = 'FinanceCustom';     // Must match the module folder name.
-$description = 'Custom finance management: tuition fees, installment payments, receipts, and reporting.'; // Short text description
+$description = 'Gestion financière personnalisée : frais de scolarité, paiements échelonnés, reçus et rapports.'; // Short text description
 $entryURL    = "index.php";   // The landing page for the unit, used in the main menu
 $type        = "Additional";  // Do not change.
 $category    = 'Finance';     // The main menu area to place the module in
@@ -140,30 +140,30 @@ $gibbonSetting[] = "INSERT INTO `gibbonSetting` (`scope`, `name`, `nameDisplay`,
 // Action rows 
 // One array per action
 $actionRows[] = [
-    'name'                      => 'Finance Dashboard', // The name of the action (appears to user in the right hand side module menu)
-    'precedence'                => '0',// If it is a grouped action, the precedence controls which is highest action in group
-    'category'                  => 'Dashboard', // Optional: subgroups for the right hand side module menu
-    'description'               => 'Visual overview of tuition payments and outstanding balances.', // Text description
-    'URLList'                   => 'index.php', // List of pages included in this action
-    'entryURL'                  => 'index.php', // The landing action for the page.
-    'entrySidebar'              => 'Y', // Whether or not there's a sidebar on entry to the action
-    'menuShow'                  => 'Y', // Whether or not this action shows up in menus or if it's hidden
-    'defaultPermissionAdmin'    => 'Y', // Default permission for built in role Admin
-    'defaultPermissionTeacher'  => 'N', // Default permission for built in role Teacher
-    'defaultPermissionStudent'  => 'N', // Default permission for built in role Student
-    'defaultPermissionParent'   => 'N', // Default permission for built in role Parent
-    'defaultPermissionSupport'  => 'N', // Default permission for built in role Support
-    'categoryPermissionStaff'   => 'Y', // Should this action be available to user roles in the Staff category?
-    'categoryPermissionStudent' => 'N', // Should this action be available to user roles in the Student category?
-    'categoryPermissionParent'  => 'N', // Should this action be available to user roles in the Parent category?
-    'categoryPermissionOther'   => 'N', // Should this action be available to user roles in the Other category?
+    'name'                      => 'Tableau de bord Finance',
+    'precedence'                => '0',
+    'category'                  => 'Tableau de bord',
+    'description'               => 'Vue d\'ensemble visuelle des paiements de scolarité et des soldes impayés.',
+    'URLList'                   => 'index.php',
+    'entryURL'                  => 'index.php',
+    'entrySidebar'              => 'Y',
+    'menuShow'                  => 'Y',
+    'defaultPermissionAdmin'    => 'Y',
+    'defaultPermissionTeacher'  => 'N',
+    'defaultPermissionStudent'  => 'N',
+    'defaultPermissionParent'   => 'N',
+    'defaultPermissionSupport'  => 'N',
+    'categoryPermissionStaff'   => 'Y',
+    'categoryPermissionStudent' => 'N',
+    'categoryPermissionParent'  => 'N',
+    'categoryPermissionOther'   => 'N',
 ];
 
 $actionRows[] = [
-    'name'                      => 'Add Payment',
+    'name'                      => 'Enregistrer un paiement',
     'precedence'                => '0',
-    'category'                  => 'Payments',
-    'description'               => 'Record an installment payment and generate a receipt.',
+    'category'                  => 'Paiements',
+    'description'               => 'Saisir un paiement échelonné et générer un reçu.',
     'URLList'                   => 'payments_add.php,payments_addProcess.php,ajax_studentSearch.php,receipt_print.php',
     'entryURL'                  => 'payments_add.php',
     'entrySidebar'              => 'Y',
@@ -180,10 +180,10 @@ $actionRows[] = [
 ];
 
 $actionRows[] = [
-    'name'                      => 'Finance Hidden Admin Access',
+    'name'                      => 'Accès Admin Finance Restreint',
     'precedence'                => '0',
-    'category'                  => 'Admin',
-    'description'               => 'Enter special finance admin access code.',
+    'category'                  => 'Administration',
+    'description'               => 'Saisir le code d\'accès admin Finance restreint.',
     'URLList'                   => 'admin_access.php',
     'entryURL'                  => 'admin_access.php',
     'entrySidebar'              => 'N',
@@ -200,10 +200,10 @@ $actionRows[] = [
 ];
 
 $actionRows[] = [
-    'name'                      => 'Finance Hidden Admin Console',
+    'name'                      => 'Console Admin Finance Restreinte',
     'precedence'                => '0',
-    'category'                  => 'Admin',
-    'description'               => 'Hidden finance admin actions for high-risk operations.',
+    'category'                  => 'Administration',
+    'description'               => 'Actions d\'administration Finance restreintes pour opérations à risque.',
     'URLList'                   => 'admin_console.php,admin_deleteAllProcess.php,payments_edit.php,payments_editProcess.php,payments_deleteSecureProcess.php',
     'entryURL'                  => 'admin_console.php',
     'entrySidebar'              => 'N',
@@ -220,10 +220,10 @@ $actionRows[] = [
 ];
 
 $actionRows[] = [
-    'name'                      => 'Student Payment History',
+    'name'                      => 'Historique des paiements',
     'precedence'                => '0',
-    'category'                  => 'Payments',
-    'description'               => 'View payment history and balances for a student.',
+    'category'                  => 'Paiements',
+    'description'               => 'Consulter l\'historique des paiements et les soldes d\'un élève.',
     'URLList'                   => 'student_history.php',
     'entryURL'                  => 'student_history.php',
     'entrySidebar'              => 'Y',
@@ -240,10 +240,10 @@ $actionRows[] = [
 ];
 
 $actionRows[] = [
-    'name'                      => 'Manage Tuition Fees',
+    'name'                      => 'Gérer les frais de scolarité',
     'precedence'                => '0',
-    'category'                  => 'Settings',
-    'description'               => 'Configure tuition fees per year group.',
+    'category'                  => 'Paramètres',
+    'description'               => 'Configurer les frais de scolarité par niveau scolaire.',
     'URLList'                   => 'tuitionFees_manage.php,tuitionFees_manageProcess.php',
     'entryURL'                  => 'tuitionFees_manage.php',
     'entrySidebar'              => 'Y',
@@ -260,10 +260,10 @@ $actionRows[] = [
 ];
 
 $actionRows[] = [
-    'name'                      => 'Delete Payment (Admin)',
+    'name'                      => 'Supprimer un paiement (Admin)',
     'precedence'                => '0',
-    'category'                  => 'Admin',
-    'description'               => 'Delete payment records (logged).',
+    'category'                  => 'Administration',
+    'description'               => 'Supprimer des paiements (action enregistrée).',
     'URLList'                   => 'payments_deleteProcess.php',
     'entryURL'                  => 'payments_deleteProcess.php',
     'entrySidebar'              => 'N',

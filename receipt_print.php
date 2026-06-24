@@ -32,13 +32,13 @@ $_GET = $container->get(Validator::class)->sanitize($_GET);
 $canAdd = isActionAccessible($guid, $connection2, '/modules/FinanceCustom/payments_add.php');
 $canAdmin = isActionAccessible($guid, $connection2, '/modules/FinanceCustom/payments_deleteProcess.php');
 if (!$canAdd && !$canAdmin) {
-    $page->addError(__('You do not have access to this action.'));
+    $page->addError(__('Vous n\'avez pas accès à cette action.'));
     return;
 }
 
 $paymentID = intval($_GET['gibbonFinanceMgmtStudentPaymentID'] ?? 0);
 if ($paymentID <= 0) {
-    $page->addError(__('The specified record cannot be found.'));
+    $page->addError(__('L\'enregistrement spécifié est introuvable.'));
     return;
 }
 
@@ -55,18 +55,18 @@ try {
 }
 
 if (empty($payment)) {
-    $page->addError(__('The specified record cannot be found.'));
+    $page->addError(__('L\'enregistrement spécifié est introuvable.'));
     return;
 }
 
 $allowReprint = financeMgmtGetSettingValue('FinanceCustom', 'receiptAllowReprint', 'N') === 'Y';
 if ($payment['receiptPrinted'] === 'Y' && !$allowReprint && !$canAdmin) {
-    $page->addError(__('This receipt has already been generated.'));
+    $page->addError(__('Ce reçu a déjà été généré.'));
     return;
 }
 
 if ($payment['receiptPrinted'] === 'Y' && !$canAdmin) {
-    $page->addError(__('You do not have access to reprint receipts.'));
+    $page->addError(__('Vous n\'avez pas l\'autorisation de réimprimer les reçus.'));
     return;
 }
 
