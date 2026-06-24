@@ -25,7 +25,7 @@ $description = 'Gestion financière personnalisée : frais de scolarité, paieme
 $entryURL    = "index.php";   // The landing page for the unit, used in the main menu
 $type        = "Additional";  // Do not change.
 $category    = 'Finance';     // The main menu area to place the module in
-$version     = '1.2.00';      // Version number
+$version     = '1.3.00';      // Version number
 $author      = 'Custom Module'; // Your name
 $url         = '';            // Your URL
 
@@ -52,6 +52,7 @@ $moduleTables[] = "CREATE TABLE IF NOT EXISTS `gibbonFinanceMgmtStudentPayment` 
   `paymentTitle` varchar(100) NOT NULL,
   `amountPaid` decimal(12,2) NOT NULL DEFAULT 0.00,
   `paymentDate` date NOT NULL,
+  `paymentMethod` enum('BANK','MOBILE','CASH','OTHER') NOT NULL DEFAULT 'CASH',
   `receiptPrinted` enum('Y','N') NOT NULL DEFAULT 'N',
   `receiptNumber` varchar(30) DEFAULT NULL,
   `gibbonPersonIDCreatedBy` int(10) UNSIGNED ZEROFILL NOT NULL,

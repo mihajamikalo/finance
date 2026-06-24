@@ -122,16 +122,17 @@ if ($payment['receiptPrinted'] === 'Y') {
 
 $generator = new ReceiptGenerator();
 $generator->outputReceipt([
-    'schoolName' => $session->get('systemName'),
-    'studentName' => Format::name('', $payment['preferredName'], $payment['surname'], 'Student', true),
-    'studentID' => $payment['studentID'] ?? '',
-    'paymentTitle' => $payment['paymentTitle'],
-    'amountPaid' => floatval($payment['amountPaid']),
-    'paymentDate' => $payment['paymentDate'],
-    'remainingBalance' => $remainingBalance,
-    'receiptNumber' => $receiptNumber,
-    'generatedBy' => Format::name('', $session->get('preferredName'), $session->get('surname'), 'Staff', false, true),
-    'backgroundImagePath' => $backgroundAbs,
+    'schoolName'         => $session->get('systemName'),
+    'studentName'        => Format::name('', $payment['preferredName'], $payment['surname'], 'Student', true),
+    'studentID'          => $payment['studentID'] ?? '',
+    'paymentTitle'       => $payment['paymentTitle'],
+    'amountPaid'         => floatval($payment['amountPaid']),
+    'paymentDate'        => $payment['paymentDate'],
+    'paymentMethod'      => $payment['paymentMethod'] ?? '',
+    'remainingBalance'   => $remainingBalance,
+    'receiptNumber'      => $receiptNumber,
+    'generatedBy'        => Format::name('', $session->get('preferredName'), $session->get('surname'), 'Staff', false, true),
+    'backgroundImagePath'=> $backgroundAbs,
 ], "receipt-{$receiptNumber}.pdf");
 
 exit;

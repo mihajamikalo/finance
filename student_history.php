@@ -225,6 +225,24 @@ $table->addColumn('paymentDate', __('Date'))->format(function ($row) {
 $table->addColumn('paymentTitle', __('Libellé'))->format(function ($row) {
     return htmlPrep($row['paymentTitle']);
 });
+$table->addColumn('paymentMethod', __('Mode'))->format(function ($row) {
+    static $once = false;
+    $prefix = '';
+    if (!$once) {
+        $prefix = '<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"/>';
+        $once = true;
+    }
+    $icon  = '<span class="material-icons" style="font-size:14px;vertical-align:middle;margin-right:3px">%s</span>';
+    $badge = '<span style="display:inline-flex;align-items:center;background:%s;color:%s;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:bold">'.sprintf($icon,'%s').'%s</span>';
+    $map = [
+        'BANK'   => sprintf($badge, '#d4e6f1', '#1a5276', 'account_balance', 'Banque'),
+        'MOBILE' => sprintf($badge, '#d5f5e3', '#1e8449', 'smartphone',      'Mobile Banking'),
+        'CASH'   => sprintf($badge, '#fef9e7', '#b7950b', 'payments',        'Espèces'),
+        'OTHER'  => sprintf($badge, '#f2f3f4', '#555',    'more_horiz',      'Autre'),
+    ];
+    $method = strtoupper($row['paymentMethod'] ?? 'CASH');
+    return $prefix.($map[$method] ?? htmlPrep($method));
+});
 $table->addColumn('amountPaid', __('Montant'))->format(function ($row) {
     return "<div style='text-align:right'>".number_format($row['amountPaid'], 2, '.', ',')."</div>";
 });

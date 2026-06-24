@@ -68,6 +68,65 @@ $row = $form->addRow();
 
 // Sélecteur de plan — seulement au premier paiement ; le script de traitement
 // détecte automatiquement si un plan existe déjà et ignore ce champ si c'est le cas.
+// Mode de paiement — obligatoire
+$row = $form->addRow();
+$row->addLabel('paymentMethod', __('Mode de paiement'));
+$row->addContent('
+<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"/>
+<div id="paymentMethodGroup" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:4px;">
+  <label class="fc-method-btn" data-value="BANK">
+    <input type="radio" name="paymentMethod" value="BANK" required style="display:none"/>
+    <span class="fc-btn-inner">
+      <span class="material-icons fc-mi">account_balance</span> '.__('Banque').'
+    </span>
+  </label>
+  <label class="fc-method-btn" data-value="MOBILE">
+    <input type="radio" name="paymentMethod" value="MOBILE" style="display:none"/>
+    <span class="fc-btn-inner">
+      <span class="material-icons fc-mi">smartphone</span> '.__('Mobile Banking').'
+    </span>
+  </label>
+  <label class="fc-method-btn" data-value="CASH">
+    <input type="radio" name="paymentMethod" value="CASH" style="display:none"/>
+    <span class="fc-btn-inner">
+      <span class="material-icons fc-mi">payments</span> '.__('Espèces').'
+    </span>
+  </label>
+</div>
+<style>
+.fc-mi { font-size:18px; vertical-align:middle; margin-right:3px; }
+.fc-method-btn { cursor:pointer; }
+.fc-btn-inner {
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  padding:9px 18px;
+  border:2px solid #ccc;
+  border-radius:6px;
+  font-size:14px;
+  font-weight:500;
+  background:#f9f9f9;
+  transition:all .15s;
+  user-select:none;
+}
+.fc-method-btn:hover .fc-btn-inner { border-color:#1a7abf; background:#e8f3fb; }
+.fc-method-btn.selected .fc-btn-inner {
+  border-color:#1a7abf;
+  background:#1a7abf;
+  color:#fff;
+}
+</style>
+<script>
+document.querySelectorAll("#paymentMethodGroup .fc-method-btn").forEach(function(lbl){
+  lbl.addEventListener("click", function(){
+    document.querySelectorAll("#paymentMethodGroup .fc-method-btn").forEach(function(l){ l.classList.remove("selected"); });
+    lbl.classList.add("selected");
+    lbl.querySelector("input").checked = true;
+  });
+});
+</script>
+');
+
 $row = $form->addRow();
     $row->addLabel('paymentOption', __('Plan de paiement'))
         ->description(__('Obligatoire lors du premier paiement. Ignoré pour les paiements suivants.'));
@@ -171,7 +230,7 @@ echo '
 
 <div id="fcModalOverlay" role="dialog" aria-modal="true" aria-labelledby="fcModalHeader">
     <div id="fcModal">
-        <div id="fcModalHeader">&#x1F4B3; '.__('Confirmation du paiement').'</div>
+        <div id="fcModalHeader"><span class="material-icons" style="font-size:20px;vertical-align:middle;margin-right:6px">receipt_long</span>'.__('Confirmation du paiement').'</div>
         <div id="fcModalBody">
             <div id="fcAmountBig"></div>
             <table>
@@ -188,6 +247,10 @@ echo '
                     <td id="fcSummaryDate">—</td>
                 </tr>
                 <tr>
+                    <td>'.__('Mode de paiement').'</td>
+                    <td id="fcSummaryMethod">—</td>
+                </tr>
+                <tr>
                     <td>'.__('Plan de paiement').'</td>
                     <td id="fcSummaryPlan">—</td>
                 </tr>
@@ -198,7 +261,7 @@ echo '
         </div>
         <div id="fcModalFooter">
             <button id="btnFcCancel" type="button">'.__('Corriger').'</button>
-            <button id="btnFcConfirm" type="button">&#x2713; '.__('Confirmer et enregistrer').'</button>
+            <button id="btnFcConfirm" type="button"><span class="material-icons" style="font-size:16px;vertical-align:middle;margin-right:4px">check</span>'.__('Confirmer et enregistrer').'</button>
         </div>
     </div>
 </div>
@@ -210,6 +273,11 @@ echo '
         "FULL": "'.__('Paiement intégral (remise 10 %)').'",
         "4":    "'.__('4 mensualités').'",
         "8":    "'.__('8 mensualités').'"
+    };
+    var methodLabels = {
+        "BANK":   "<span class=\"material-icons\" style=\"font-size:16px;vertical-align:middle;margin-right:4px\">account_balance</span>'.__('Banque').'",
+        "MOBILE": "<span class=\"material-icons\" style=\"font-size:16px;vertical-align:middle;margin-right:4px\">smartphone</span>'.__('Mobile Banking').'",
+        "CASH":   "<span class=\"material-icons\" style=\"font-size:16px;vertical-align:middle;margin-right:4px\">payments</span>'.__('Espèces').'"
     };
 
     function formatAmount(val) {
@@ -230,10 +298,12 @@ echo '
     }
 
     document.getElementById("btnConfirmPayment").addEventListener("click", function () {
-        var amount    = document.querySelector("[name=amountPaid]").value;
-        var title     = document.querySelector("[name=paymentTitle]").value;
-        var dateVal   = document.querySelector("[name=paymentDate]").value;
-        var planVal   = document.querySelector("[name=paymentOption]").value;
+        var amount     = document.querySelector("[name=amountPaid]").value;
+        var title      = document.querySelector("[name=paymentTitle]").value;
+        var dateVal    = document.querySelector("[name=paymentDate]").value;
+        var planVal    = document.querySelector("[name=paymentOption]").value;
+        var methodEl   = document.querySelector("[name=paymentMethod]:checked");
+        var methodVal  = methodEl ? methodEl.value : "";
 
         if (!amount || parseFloat(amount) <= 0) {
             alert("'.__('Veuillez saisir un montant valide.').'");
@@ -249,11 +319,16 @@ echo '
             alert("'.__('Veuillez saisir une date.').'");
             return;
         }
+        if (!methodVal) {
+            alert("'.__('Veuillez sélectionner un mode de paiement.').'");
+            return;
+        }
 
         document.getElementById("fcAmountBig").textContent = formatAmount(amount);
         document.getElementById("fcSummaryTitle").textContent   = title || "—";
         document.getElementById("fcSummaryDate").textContent    = dateVal || "—";
         document.getElementById("fcSummaryStudent").textContent = getFinderLabel("gibbonPersonIDStudent");
+        document.getElementById("fcSummaryMethod").innerHTML  = methodLabels[methodVal] || methodVal || "—";
         document.getElementById("fcSummaryPlan").textContent    = planLabels[planVal] || planVal || "—";
 
         document.getElementById("fcModalOverlay").classList.add("fc-open");

@@ -78,3 +78,10 @@ SELECT 'FinanceCustom', 'installmentInitialDeposit', 'Required Initial Deposit',
 FROM DUAL WHERE NOT EXISTS (
     SELECT 1 FROM gibbonSetting WHERE scope='FinanceCustom' AND name='installmentInitialDeposit'
 );end";
+
+// v1.3.00 – Mode de paiement (Banque / Mobile Banking / Espèces)
+$count++;
+$sql[$count][0] = "1.3.00";
+$sql[$count][1] = "ALTER TABLE `gibbonFinanceMgmtStudentPayment`
+  ADD COLUMN IF NOT EXISTS `paymentMethod` ENUM('BANK','MOBILE','CASH','OTHER') NOT NULL DEFAULT 'CASH'
+  AFTER `paymentDate`;end";

@@ -70,6 +70,7 @@ $gibbonSchoolYearID = intval($session->get('gibbonSchoolYearID'));
 
 try {
     $sql = "SELECT p.paymentDate, p.receiptNumber, p.paymentTitle, p.amountPaid,
+            p.paymentMethod,
             per.studentID, per.preferredName, per.surname, yg.nameShort AS yearGroup
         FROM gibbonFinanceMgmtStudentPayment AS p
         JOIN gibbonPerson AS per ON (p.gibbonPersonIDStudent=per.gibbonPersonID)
@@ -116,12 +117,22 @@ $headers = [
     __('Nom de l\'élève'),
     __('Niveau'),
     __('Libellé du paiement'),
+    __('Mode de paiement'),
     __('Montant versé'),
+];
+
+$methodMapExport = [
+    'BANK'   => 'Banque',
+    'MOBILE' => 'Mobile Banking',
+    'CASH'   => 'Espèces',
+    'OTHER'  => 'Autre',
 ];
 
 $exportRows = [];
 foreach ($rows as $row) {
-    $studentName = trim(($row['preferredName'] ?? '').' '.($row['surname'] ?? ''));
+    $studentName  = trim(($row['preferredName'] ?? '').' '.($row['surname'] ?? ''));
+    $methodKey    = strtoupper($row['paymentMethod'] ?? 'CASH');
+    $methodLabel  = $methodMapExport[$methodKey] ?? $methodKey;
     $exportRows[] = [
         Format::date($row['paymentDate'] ?? ''),
         strval($row['receiptNumber'] ?? ''),
@@ -129,6 +140,7 @@ foreach ($rows as $row) {
         $studentName,
         strval($row['yearGroup'] ?? ''),
         strval($row['paymentTitle'] ?? ''),
+        $methodLabel,
         number_format(floatval($row['amountPaid'] ?? 0), 2, '.', ''),
     ];
 }
@@ -147,13 +159,14 @@ foreach ($exportRows as $exportRow) {
     $sheet->setCellValueExplicit('D'.$rowNumber, strval($exportRow[3]), DataType::TYPE_STRING);
     $sheet->setCellValueExplicit('E'.$rowNumber, strval($exportRow[4]), DataType::TYPE_STRING);
     $sheet->setCellValueExplicit('F'.$rowNumber, strval($exportRow[5]), DataType::TYPE_STRING);
-    $sheet->setCellValue('G'.$rowNumber, floatval($exportRow[6]));
+    $sheet->setCellValueExplicit('G'.$rowNumber, strval($exportRow[6]), DataType::TYPE_STRING);
+    $sheet->setCellValue('H'.$rowNumber, floatval($exportRow[7]));
     $rowNumber++;
 }
 
 $lastRow = max(1, $rowNumber - 1);
 
-$sheet->getStyle('A1:G1')->applyFromArray([
+$sheet->getStyle('A1:H1')->applyFromArray([
     'font' => [
         'bold' => true,
         'color' => ['argb' => 'FF000000'],
@@ -168,7 +181,7 @@ $sheet->getStyle('A1:G1')->applyFromArray([
     ],
 ]);
 
-$sheet->getStyle('A1:G'.$lastRow)->applyFromArray([
+$sheet->getStyle('A1:H'.$lastRow)->applyFromArray([
     'borders' => [
         'allBorders' => [
             'borderStyle' => Border::BORDER_THIN,
@@ -178,15 +191,15 @@ $sheet->getStyle('A1:G'.$lastRow)->applyFromArray([
 ]);
 
 if ($lastRow >= 2) {
-    $sheet->getStyle('G2:G'.$lastRow)->getNumberFormat()->setFormatCode('#,##0.00');
-    $sheet->getStyle('G2:G'.$lastRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+    $sheet->getStyle('H2:H'.$lastRow)->getNumberFormat()->setFormatCode('#,##0.00');
+    $sheet->getStyle('H2:H'.$lastRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 }
 
-foreach (range('A', 'G') as $column) {
+foreach (range('A', 'H') as $column) {
     $sheet->getColumnDimension($column)->setAutoSize(true);
 }
 
-$sheet->setAutoFilter('A1:G1');
+$sheet->setAutoFilter('A1:H1');
 $sheet->freezePane('A2');
 
 $filename = 'finance-history-'.$dateStart.'-to-'.$dateEnd.'.xlsx';

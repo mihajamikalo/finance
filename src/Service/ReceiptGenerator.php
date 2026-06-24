@@ -61,9 +61,18 @@ class ReceiptGenerator
         $receiptNumber = htmlspecialchars($d['receiptNumber'] ?? '', ENT_QUOTES, 'UTF-8');
         $generatedBy = htmlspecialchars($d['generatedBy'] ?? '', ENT_QUOTES, 'UTF-8');
 
-        $amountPaid = number_format(floatval($d['amountPaid'] ?? 0), 2, '.', ',');
-        $balance = ($d['remainingBalance'] === null) ? __('N/D') : number_format(floatval($d['remainingBalance']), 2, '.', ',');
+        $amountPaid  = number_format(floatval($d['amountPaid'] ?? 0), 2, '.', ',');
+        $balance     = ($d['remainingBalance'] === null) ? __('N/D') : number_format(floatval($d['remainingBalance']), 2, '.', ',');
         $paymentDate = !empty($d['paymentDate']) ? Format::date($d['paymentDate']) : '';
+
+        $methodMap = [
+            'BANK'   => __('Banque'),
+            'MOBILE' => __('Mobile Banking'),
+            'CASH'   => __('Espèces'),
+            'OTHER'  => __('Autre'),
+        ];
+        $methodRaw  = strtoupper(trim($d['paymentMethod'] ?? ''));
+        $methodLabel = htmlspecialchars($methodMap[$methodRaw] ?? $methodRaw, ENT_QUOTES, 'UTF-8');
 
         return "
             <style>
@@ -97,6 +106,10 @@ class ReceiptGenerator
                     <tr>
                         <td class='label'>".__('Date du paiement')."</td>
                         <td class='value'>{$paymentDate}</td>
+                    </tr>
+                    <tr>
+                        <td class='label'>".__('Mode de paiement')."</td>
+                        <td class='value'>{$methodLabel}</td>
                     </tr>
                 </table>
             </div>

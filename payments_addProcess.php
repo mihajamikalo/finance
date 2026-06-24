@@ -36,11 +36,15 @@ if (isActionAccessible($guid, $connection2, '/modules/FinanceCustom/payments_add
     exit;
 }
 
-$paymentTitle  = trim($_POST['paymentTitle'] ?? '');
-$studentToken  = trim($_POST['gibbonPersonIDStudent'] ?? '');
-$amountPaid    = floatval($_POST['amountPaid'] ?? 0);
-$paymentDate   = Format::dateConvert($_POST['paymentDate'] ?? '');
-$paymentOption = trim($_POST['paymentOption'] ?? '');
+$paymentTitle   = trim($_POST['paymentTitle'] ?? '');
+$studentToken   = trim($_POST['gibbonPersonIDStudent'] ?? '');
+$amountPaid     = floatval($_POST['amountPaid'] ?? 0);
+$paymentDate    = Format::dateConvert($_POST['paymentDate'] ?? '');
+$paymentOption  = trim($_POST['paymentOption'] ?? '');
+$validMethods   = ['BANK', 'MOBILE', 'CASH', 'OTHER'];
+$paymentMethod  = in_array(trim($_POST['paymentMethod'] ?? ''), $validMethods, true)
+                    ? trim($_POST['paymentMethod'])
+                    : 'CASH';
 
 // Finder stores tokens as comma-separated values, enforce single selection
 $gibbonPersonIDStudent = intval(explode(',', $studentToken)[0] ?? 0);
@@ -103,16 +107,17 @@ try {
     }
 
     $data = [
-        'gibbonPersonIDStudent' => $gibbonPersonIDStudent,
-        'gibbonSchoolYearID' => $gibbonSchoolYearID,
-        'gibbonYearGroupID' => $gibbonYearGroupID,
-        'paymentTitle' => $paymentTitle,
-        'amountPaid' => $amountPaid,
-        'paymentDate' => $paymentDate,
-        'receiptPrinted' => 'N',
-        'receiptNumber' => null,
-        'gibbonPersonIDCreatedBy' => $gibbonPersonIDCreatedBy,
-        'createdAt' => date('Y-m-d H:i:s'),
+        'gibbonPersonIDStudent'  => $gibbonPersonIDStudent,
+        'gibbonSchoolYearID'     => $gibbonSchoolYearID,
+        'gibbonYearGroupID'      => $gibbonYearGroupID,
+        'paymentTitle'           => $paymentTitle,
+        'amountPaid'             => $amountPaid,
+        'paymentDate'            => $paymentDate,
+        'paymentMethod'          => $paymentMethod,
+        'receiptPrinted'         => 'N',
+        'receiptNumber'          => null,
+        'gibbonPersonIDCreatedBy'=> $gibbonPersonIDCreatedBy,
+        'createdAt'              => date('Y-m-d H:i:s'),
     ];
 
     $sql = "INSERT INTO gibbonFinanceMgmtStudentPayment
@@ -122,6 +127,7 @@ try {
             paymentTitle=:paymentTitle,
             amountPaid=:amountPaid,
             paymentDate=:paymentDate,
+            paymentMethod=:paymentMethod,
             receiptPrinted=:receiptPrinted,
             receiptNumber=:receiptNumber,
             gibbonPersonIDCreatedBy=:gibbonPersonIDCreatedBy,
@@ -154,6 +160,7 @@ try {
             'paymentDate'   => $paymentDate,
             'receiptNumber' => $receiptNumber,
             'paymentOption' => $paymentOption,
+            'paymentMethod' => $paymentMethod,
         ])
     );
 
@@ -194,16 +201,17 @@ if (!empty($backgroundRel)) {
 
 $generator = new ReceiptGenerator();
 $generator->outputReceipt([
-    'schoolName' => $session->get('systemName'),
-    'studentName' => Format::name('', $student['preferredName'] ?? '', $student['surname'] ?? '', 'Student', true),
-    'studentID' => $student['studentID'] ?? '',
-    'paymentTitle' => $paymentTitle,
-    'amountPaid' => $amountPaid,
-    'paymentDate' => $paymentDate,
-    'remainingBalance' => $remainingBalance,
-    'receiptNumber' => $receiptNumber,
-    'generatedBy' => Format::name('', $session->get('preferredName'), $session->get('surname'), 'Staff', false, true),
-    'backgroundImagePath' => $backgroundAbs,
+    'schoolName'         => $session->get('systemName'),
+    'studentName'        => Format::name('', $student['preferredName'] ?? '', $student['surname'] ?? '', 'Student', true),
+    'studentID'          => $student['studentID'] ?? '',
+    'paymentTitle'       => $paymentTitle,
+    'amountPaid'         => $amountPaid,
+    'paymentDate'        => $paymentDate,
+    'paymentMethod'      => $paymentMethod,
+    'remainingBalance'   => $remainingBalance,
+    'receiptNumber'      => $receiptNumber,
+    'generatedBy'        => Format::name('', $session->get('preferredName'), $session->get('surname'), 'Staff', false, true),
+    'backgroundImagePath'=> $backgroundAbs,
 ], "receipt-{$receiptNumber}.pdf");
 
 exit;
