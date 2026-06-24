@@ -33,21 +33,17 @@ if ($paymentID <= 0 || $paymentTitle === '' || $amountPaid <= 0 || empty($paymen
 }
 
 try {
+    $connection2->beginTransaction();
+
     $stmt = $connection2->prepare("SELECT * FROM gibbonFinanceMgmtStudentPayment WHERE gibbonFinanceMgmtStudentPaymentID=:id");
     $stmt->execute(['id' => $paymentID]);
     $existing = $stmt->fetch();
     if (empty($existing)) {
+        if ($connection2->inTransaction()) {
+            $connection2->rollBack();
+        }
         header("Location: {$returnTo}&return=error3");
         exit;
-    }
-
-    $totals = financeMgmtGetStudentTotals($connection2, intval($existing['gibbonPersonIDStudent']), intval($existing['gibbonSchoolYearID']));
-    if ($totals['totalFee'] !== null) {
-        $otherPaid = max(0, floatval($totals['totalPaid']) - floatval($existing['amountPaid']));
-        if (($otherPaid + $amountPaid) - floatval($totals['totalFee']) > 0.01) {
-            header("Location: {$returnTo}&return=error1");
-            exit;
-        }
     }
 
     $sqlUpdate = "UPDATE gibbonFinanceMgmtStudentPayment
@@ -75,7 +71,21 @@ try {
             ],
         ])
     );
+
+    $plan = financeMgmtGetStudentPaymentPlan(
+        $connection2,
+        intval($existing['gibbonPersonIDStudent']),
+        intval($existing['gibbonSchoolYearID'])
+    );
+    if (!empty($plan)) {
+        financeMgmtRebuildPlanLedger($connection2, $plan);
+    }
+
+    $connection2->commit();
 } catch (PDOException $e) {
+    if ($connection2->inTransaction()) {
+        $connection2->rollBack();
+    }
     header("Location: {$returnTo}&return=error2");
     exit;
 }

@@ -40,10 +40,15 @@ if ($paymentID <= 0) {
 }
 
 try {
+    $connection2->beginTransaction();
+
     $stmt = $connection2->prepare("SELECT * FROM gibbonFinanceMgmtStudentPayment WHERE gibbonFinanceMgmtStudentPaymentID=:id");
     $stmt->execute(['id' => $paymentID]);
     $payment = $stmt->fetch();
     if (empty($payment)) {
+        if ($connection2->inTransaction()) {
+            $connection2->rollBack();
+        }
         header("Location: {$returnTo}&return=error3");
         exit;
     }
@@ -58,7 +63,21 @@ try {
         strval($session->get('gibbonPersonID')),
         json_encode(['deletedPayment' => $payment])
     );
+
+    $plan = financeMgmtGetStudentPaymentPlan(
+        $connection2,
+        intval($payment['gibbonPersonIDStudent']),
+        intval($payment['gibbonSchoolYearID'])
+    );
+    if (!empty($plan)) {
+        financeMgmtRebuildPlanLedger($connection2, $plan);
+    }
+
+    $connection2->commit();
 } catch (PDOException $e) {
+    if ($connection2->inTransaction()) {
+        $connection2->rollBack();
+    }
     header("Location: {$returnTo}&return=error2");
     exit;
 }

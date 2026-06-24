@@ -40,6 +40,7 @@ $paymentTitle = trim($_POST['paymentTitle'] ?? '');
 $studentToken = trim($_POST['gibbonPersonIDStudent'] ?? '');
 $amountPaid = floatval($_POST['amountPaid'] ?? 0);
 $paymentDate = Format::dateConvert($_POST['paymentDate'] ?? '');
+$paymentOption = trim($_POST['paymentOption'] ?? '');
 
 // Finder stores tokens as comma-separated values, enforce single selection
 $gibbonPersonIDStudent = intval(explode(',', $studentToken)[0] ?? 0);
@@ -68,16 +69,44 @@ if ($totals['totalFee'] === null) {
     exit;
 }
 
-// Prevent overpayment
-$newTotal = floatval($totals['totalPaid']) + $amountPaid;
-if ($newTotal - floatval($totals['totalFee']) > 0.01) {
-    $URL .= '&return=error1';
-    header("Location: {$URL}");
-    exit;
-}
-
 try {
     $connection2->beginTransaction();
+
+    $existingPlan = financeMgmtGetStudentPaymentPlan($connection2, $gibbonPersonIDStudent, $gibbonSchoolYearID);
+    $paymentCount = financeMgmtCountStudentPayments($connection2, $gibbonPersonIDStudent, $gibbonSchoolYearID);
+
+    if ($existingPlan === null) {
+        if ($paymentCount === 0) {
+            if (!in_array($paymentOption, ['FULL', '4', '8'], true)) {
+                $connection2->rollBack();
+                $URL .= '&return=error3';
+                header("Location: {$URL}");
+                exit;
+            }
+
+            financeMgmtCreateStudentPaymentPlan(
+                $connection2,
+                $gibbonPersonIDStudent,
+                $gibbonSchoolYearID,
+                $gibbonYearGroupID,
+                floatval($totals['totalFee']),
+                $paymentOption,
+                $paymentDate,
+                $gibbonPersonIDCreatedBy
+            );
+        } else {
+            financeMgmtCreateStudentPaymentPlan(
+                $connection2,
+                $gibbonPersonIDStudent,
+                $gibbonSchoolYearID,
+                $gibbonYearGroupID,
+                floatval($totals['totalFee']),
+                'LEGACY',
+                $paymentDate,
+                $gibbonPersonIDCreatedBy
+            );
+        }
+    }
 
     $data = [
         'gibbonPersonIDStudent' => $gibbonPersonIDStudent,
@@ -125,8 +154,26 @@ try {
         'PAYMENT_CREATE',
         strval($paymentID),
         strval($gibbonPersonIDCreatedBy),
-        json_encode(['student' => $gibbonPersonIDStudent, 'amountPaid' => $amountPaid, 'paymentDate' => $paymentDate, 'receiptNumber' => $receiptNumber])
+        json_encode([
+            'student' => $gibbonPersonIDStudent,
+            'amountPaid' => $amountPaid,
+            'paymentDate' => $paymentDate,
+            'receiptNumber' => $receiptNumber,
+            'paymentOption' => $paymentOption,
+        ])
     );
+
+    $planAfterInsert = financeMgmtGetOrCreateLegacyPlan(
+        $connection2,
+        $gibbonPersonIDStudent,
+        $gibbonSchoolYearID,
+        $gibbonYearGroupID,
+        floatval($totals['totalFee']),
+        $gibbonPersonIDCreatedBy
+    );
+    if (!empty($planAfterInsert)) {
+        financeMgmtRebuildPlanLedger($connection2, $planAfterInsert);
+    }
 
     $connection2->commit();
 } catch (PDOException $e) {
@@ -148,17 +195,13 @@ try {
     $student = [];
 }
 
-$remainingBalance = max(0, floatval($totals['totalFee']) - ($totals['totalPaid'] + $amountPaid));
+$totalsAfter = financeMgmtGetStudentTotals($connection2, $gibbonPersonIDStudent, $gibbonSchoolYearID);
+$remainingBalance = max(0, floatval($totalsAfter['totalFee']) - floatval($totalsAfter['totalPaid']));
 
-$templateRel = strval(financeMgmtGetSettingValue('FinanceCustom', 'receiptTemplateImage', ''));
-if (empty($templateRel)) {
-    // Backward compatibility with previous setting name.
-    $templateRel = strval(financeMgmtGetSettingValue('FinanceCustom', 'receiptBackgroundImage', ''));
-}
-
-$templateAbs = '';
-if (!empty($templateRel)) {
-    $templateAbs = rtrim($session->get('absolutePath'), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . ltrim($templateRel, DIRECTORY_SEPARATOR);
+$backgroundRel = strval(financeMgmtGetSettingValue('FinanceCustom', 'receiptBackgroundImage', ''));
+$backgroundAbs = '';
+if (!empty($backgroundRel)) {
+    $backgroundAbs = rtrim($session->get('absolutePath'), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . ltrim($backgroundRel, DIRECTORY_SEPARATOR);
 }
 
 $generator = new ReceiptGenerator();
@@ -172,8 +215,7 @@ $generator->outputReceipt([
     'remainingBalance' => $remainingBalance,
     'receiptNumber' => $receiptNumber,
     'generatedBy' => Format::name('', $session->get('preferredName'), $session->get('surname'), 'Staff', false, true),
-    'templateImagePath' => $templateAbs,
-    'backgroundImagePath' => $templateAbs,
+    'backgroundImagePath' => $backgroundAbs,
 ], "receipt-{$receiptNumber}.pdf");
 
 exit;

@@ -32,15 +32,6 @@ if (isActionAccessible($guid, $connection2, '/modules/FinanceCustom/index.php') 
 
 $page->breadcrumbs->add(__('Finance Dashboard'));
 $gibbonSchoolYearID = intval($session->get('gibbonSchoolYearID'));
-$return = strval($_GET['return'] ?? '');
-
-if ($return === 'paymentHistoryDeleted') {
-    $page->addSuccess(__('Payment history has been deleted successfully.'));
-} elseif ($return === 'otpNoEmail') {
-    $page->addError(__('No administrator email was found. Configure delete OTP admin email(s) first.'));
-} elseif ($return === 'otpSendFail') {
-    $page->addError(__('Unable to send OTP email. Please verify mail server settings.'));
-}
 
 $dateStartInput = $_GET['dateStart'] ?? ($_POST['dateStart'] ?? '');
 $dateEndInput = $_GET['dateEnd'] ?? ($_POST['dateEnd'] ?? '');
@@ -55,20 +46,6 @@ if ($dateStart > $dateEnd) {
 
 echo '<h2>'.__('Overview').'</h2>';
 
-$dangerForm = Form::create(
-    'financeDeleteAllHistory',
-    $session->get('absoluteURL').'/modules/FinanceCustom/payments_deleteOtpRequestProcess.php'
-);
-$dangerForm->addHiddenValue('address', $session->get('address'));
-$dangerRow = $dangerForm->addRow();
-$dangerRow->addContent("<span style='color:#b91c1c; font-weight:bold'>".__('Danger Zone')."</span>");
-$dangerButton = $dangerRow->addSubmit(__('Effacer toutes les données'));
-$dangerButton
-    ->setAttribute('class', 'button')
-    ->setAttribute('style', 'background:#dc2626;color:#fff;border:1px solid #dc2626;')
-    ->setAttribute('onclick', "return confirm('".__('An OTP will be sent to administrators. Continue?')."');");
-echo $dangerForm->getOutput();
-
 $form = Form::create('financeDashboardFilters', $session->get('absoluteURL').'/index.php?q=/modules/FinanceCustom/index.php');
 $form->addRow()->addHeading(__('Filters'));
 
@@ -82,11 +59,6 @@ $row = $form->addRow();
 
 $form->addRow()->addSubmit(__('Apply'));
 echo $form->getOutput();
-
-$exportURL = $session->get('absoluteURL').'/modules/FinanceCustom/history_export.php'
-    .'?dateStart='.urlencode($dateStart)
-    .'&dateEnd='.urlencode($dateEnd);
-echo "<div style='margin-top:8px'><a class='button' href='".htmlPrep($exportURL)."'>".__('Export History to Excel')."</a></div>";
 
 // Totals
 try {
@@ -185,6 +157,64 @@ try {
     $stmtOut->bindValue(':offset', $unpaidOffset, PDO::PARAM_INT);
     $stmtOut->execute();
     $outstanding = $stmtOut->fetchAll();
+
+    $monthlyExpected = 0.0;
+    $monthlyReceived = 0.0;
+    $monthlyOverdue = 0.0;
+    $overdueStudents = [];
+
+    $sqlPlans = "SELECT plan.*,
+            per.preferredName, per.surname, per.studentID,
+            yg.nameShort AS className
+        FROM gibbonFinanceMgmtPaymentPlan AS plan
+        JOIN gibbonPerson AS per ON (plan.gibbonPersonIDStudent=per.gibbonPersonID)
+        LEFT JOIN gibbonYearGroup AS yg ON (plan.gibbonYearGroupID=yg.gibbonYearGroupID)
+        WHERE plan.gibbonSchoolYearID=:gibbonSchoolYearID
+            AND plan.status='ACTIVE'";
+    $stmtPlans = $connection2->prepare($sqlPlans);
+    $stmtPlans->execute(['gibbonSchoolYearID' => $gibbonSchoolYearID]);
+    $plans = $stmtPlans->fetchAll();
+
+    foreach ($plans as $plan) {
+        $payments = financeMgmtGetStudentPayments($connection2, intval($plan['gibbonPersonIDStudent']), $gibbonSchoolYearID);
+        $evaluation = financeMgmtEvaluatePlan($plan, $payments, date('Y-m-d'));
+
+        $monthlyExpected += floatval($evaluation['totals']['expectedCurrentMonth']);
+        $monthlyReceived += floatval($evaluation['totals']['paidCurrentMonth']);
+        $monthlyOverdue += floatval($evaluation['totals']['overdueAmount']);
+
+        $lateMonths = intval($evaluation['totals']['lateMonths']);
+        $overdueAmount = floatval($evaluation['totals']['overdueAmount']);
+        if ($lateMonths <= 0 && $overdueAmount <= 0.009) {
+            continue;
+        }
+
+        $status = 'moderate';
+        if ($lateMonths >= 3 || $overdueAmount >= (floatval($plan['installmentAmount']) * 2)) {
+            $status = 'critical';
+        } elseif ($lateMonths <= 0) {
+            $status = 'ok';
+        }
+
+        $overdueStudents[] = [
+            'gibbonPersonIDStudent' => intval($plan['gibbonPersonIDStudent']),
+            'studentName' => Format::name('', $plan['preferredName'], $plan['surname'], 'Student', true),
+            'studentID' => $plan['studentID'],
+            'className' => $plan['className'] ?? __('N/A'),
+            'lateMonths' => $lateMonths,
+            'overdueAmount' => $overdueAmount,
+            'lastPaymentDate' => $evaluation['totals']['lastPaymentDate'],
+            'status' => $status,
+        ];
+    }
+
+    usort($overdueStudents, function ($a, $b) {
+        if ($a['lateMonths'] === $b['lateMonths']) {
+            return $b['overdueAmount'] <=> $a['overdueAmount'];
+        }
+
+        return $b['lateMonths'] <=> $a['lateMonths'];
+    });
 } catch (PDOException $e) {
     $page->addError(__('A database error occurred.'));
     return;
@@ -195,6 +225,14 @@ echo "<div class='w-full md:w-1/3 bg-white border rounded p-4'>";
 echo "<div class='text-sm text-gray-600'>".__('Total Payments Received')."</div>";
 echo "<div class='text-2xl font-bold'>".number_format($totalPayments, 2, '.', ',')."</div>";
 echo "<div class='text-xs text-gray-500 mt-1'>".sprintf(__('From %1$s to %2$s'), Format::date($dateStart), Format::date($dateEnd))."</div>";
+echo "</div>";
+echo "<div class='w-full md:w-1/3 bg-white border rounded p-4'>";
+echo "<div class='text-sm text-gray-600'>".__('Expected This Month')."</div>";
+echo "<div class='text-2xl font-bold'>".number_format($monthlyExpected, 2, '.', ',')."</div>";
+echo "</div>";
+echo "<div class='w-full md:w-1/3 bg-white border rounded p-4'>";
+echo "<div class='text-sm text-gray-600'>".__('Overdue Amount (Today)')."</div>";
+echo "<div class='text-2xl font-bold'>".number_format($monthlyOverdue, 2, '.', ',')."</div>";
 echo "</div>";
 echo "</div>";
 
@@ -226,6 +264,21 @@ $chartYG = Chart::create('paymentsByYearGroup', 'bar')
     ->setColorOpacity(0.7);
 $chartYG->addDataset('payments')->setData($dataYG);
 
+$chartMonthly = Chart::create('monthlyFinanceStatus', 'bar')
+    ->setLabels([__('Expected'), __('Received'), __('Overdue')])
+    ->setLegend(['display' => false])
+    ->setOptions([
+        'responsive' => true,
+        'maintainAspectRatio' => false,
+        'height' => '220px',
+    ])
+    ->setColorOpacity(0.75);
+$chartMonthly->addDataset('monthly')->setData([
+    $monthlyExpected,
+    $monthlyReceived,
+    $monthlyOverdue,
+]);
+
 echo '<div class="flex flex-wrap gap-6 mt-6">';
 echo '<div class="w-full md:w-1/2 bg-white border rounded p-4">';
 echo '<h3 class="mb-2">'.__('Payments by Date').'</h3>';
@@ -234,6 +287,10 @@ echo '</div>';
 echo '<div class="w-full md:w-1/2 bg-white border rounded p-4">';
 echo '<h3 class="mb-2">'.__('Payments by Year Group').'</h3>';
 echo '<div style="height: 240px">'.$chartYG->render().'</div>';
+echo '</div>';
+echo '<div class="w-full md:w-1/2 bg-white border rounded p-4">';
+echo '<h3 class="mb-2">'.__('Current Month Financial Status').'</h3>';
+echo '<div style="height: 240px">'.$chartMonthly->render().'</div>';
 echo '</div>';
 echo '</div>';
 
@@ -294,5 +351,37 @@ if (empty($outstanding)) {
     echo "</table>";
 }
 echo '</div>';
+echo '</div>';
+
+echo '<div class="w-full bg-white border rounded p-4 mt-6">';
+echo '<h3 class="mb-3">'.__('Late Payments').'</h3>';
+if (empty($overdueStudents)) {
+    echo "<div class='text-sm text-gray-600'>".__('There are no records to display.')."</div>";
+} else {
+    echo "<table class='smallIntBorder' cellspacing='0' style='width:100%'>";
+    echo "<tr class='head'><th>".__('Student')."</th><th>".__('Class')."</th><th style='text-align:right'>".__('Late Months')."</th><th style='text-align:right'>".__('Outstanding')."</th><th>".__('Last Payment')."</th><th>".__('Status')."</th></tr>";
+    foreach ($overdueStudents as $o) {
+        $statusLabel = __('Moderate');
+        $statusColor = '#f39c12';
+        if ($o['status'] === 'critical') {
+            $statusLabel = __('Critical');
+            $statusColor = '#e74c3c';
+        } elseif ($o['status'] === 'ok') {
+            $statusLabel = __('Up to date');
+            $statusColor = '#27ae60';
+        }
+        $studentLink = $session->get('absoluteURL').'/index.php?q=/modules/FinanceCustom/student_history.php&gibbonPersonIDStudent='.$o['gibbonPersonIDStudent'];
+        $studentLabel = $o['studentName'].' <span class="text-xs text-gray-500">('.htmlPrep($o['studentID']).')</span>';
+        echo "<tr>";
+        echo "<td><a href='".htmlPrep($studentLink)."'>".$studentLabel."</a></td>";
+        echo "<td>".htmlPrep($o['className'])."</td>";
+        echo "<td style='text-align:right'>".intval($o['lateMonths'])."</td>";
+        echo "<td style='text-align:right'>".number_format($o['overdueAmount'], 2, '.', ',')."</td>";
+        echo "<td>".(!empty($o['lastPaymentDate']) ? Format::date($o['lastPaymentDate']) : __('No payment'))."</td>";
+        echo "<td><span style='color: {$statusColor}; font-weight: bold'>".$statusLabel."</span></td>";
+        echo "</tr>";
+    }
+    echo "</table>";
+}
 echo '</div>';
 

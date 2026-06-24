@@ -83,6 +83,43 @@ echo "<td><b>".__($totals['status'])."</b></td>";
 echo "</tr>";
 echo "</table>";
 
+$plan = financeMgmtGetStudentPaymentPlan($connection2, $gibbonPersonIDStudent, $gibbonSchoolYearID);
+if (!empty($plan)) {
+    $paymentsForPlan = financeMgmtGetStudentPayments($connection2, $gibbonPersonIDStudent, $gibbonSchoolYearID);
+    $evaluation = financeMgmtEvaluatePlan($plan, $paymentsForPlan, date('Y-m-d'));
+
+    echo '<h2>'.__('Installment Plan').'</h2>';
+    echo "<table class='smallIntBorder' cellspacing='0' style='width: 100%'>";
+    echo "<tr class='head'><th>".__('Plan')."</th><th>".__('Tuition (Original)')."</th><th>".__('Discount')."</th><th>".__('Tuition (Final)')."</th><th>".__('Required Deposit')."</th><th>".__('Monthly Installment')."</th></tr>";
+    echo "<tr>";
+    echo "<td>".htmlPrep(strval($plan['planType']))."</td>";
+    echo "<td>".financeMgmtFormatMoney(floatval($plan['tuitionFeeOriginal']))."</td>";
+    echo "<td>".financeMgmtFormatMoney(floatval($plan['discountAmount']))."</td>";
+    echo "<td>".financeMgmtFormatMoney(floatval($plan['tuitionFeeFinal']))."</td>";
+    echo "<td>".financeMgmtFormatMoney(floatval($plan['requiredDeposit']))."</td>";
+    echo "<td>".financeMgmtFormatMoney(floatval($plan['installmentAmount']))."</td>";
+    echo "</tr>";
+    echo "</table>";
+
+    echo '<h3>'.__('Installment Tracking').'</h3>';
+    echo "<table class='smallIntBorder' cellspacing='0' style='width: 100%'>";
+    echo "<tr class='head'><th>#</th><th>".__('Due Date')."</th><th>".__('Expected')."</th><th>".__('Credit Carried')."</th><th>".__('Payable')."</th><th>".__('Paid')."</th><th>".__('Outstanding')."</th><th>".__('Status')."</th></tr>";
+    foreach ($evaluation['installments'] as $item) {
+        $statusLabel = ($item['isLate'] === 'Y') ? __('Late') : (($item['outstandingAmount'] > 0.009) ? __('Pending') : __('Paid'));
+        echo "<tr>";
+        echo "<td>".intval($item['installmentNumber'])."</td>";
+        echo "<td>".Format::date($item['dueDate'])."</td>";
+        echo "<td style='text-align:right'>".number_format($item['expectedAmount'], 2, '.', ',')."</td>";
+        echo "<td style='text-align:right'>".number_format($item['creditBefore'], 2, '.', ',')."</td>";
+        echo "<td style='text-align:right'>".number_format($item['payableAmount'], 2, '.', ',')."</td>";
+        echo "<td style='text-align:right'>".number_format($item['appliedAmount'], 2, '.', ',')."</td>";
+        echo "<td style='text-align:right'>".number_format($item['outstandingAmount'], 2, '.', ',')."</td>";
+        echo "<td>".$statusLabel."</td>";
+        echo "</tr>";
+    }
+    echo "</table>";
+}
+
 /** @var StudentPaymentGateway $paymentGateway */
 $paymentGateway = $container->get(StudentPaymentGateway::class);
 $criteria = (new QueryCriteria())->sortBy('paymentDate', 'DESC')->sortBy('gibbonFinanceMgmtStudentPaymentID', 'DESC');

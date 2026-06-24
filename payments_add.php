@@ -33,6 +33,8 @@ $page->breadcrumbs->add(__('Add Payment'));
 
 echo '<h2>'.__('Record Payment').'</h2>';
 
+$configuredDeposit = financeMgmtGetConfiguredInitialDeposit();
+
 $form = Form::create('financePaymentAdd', $session->get('absoluteURL').'/modules/FinanceCustom/payments_addProcess.php');
 $form->addHiddenValue('address', $session->get('address'));
 
@@ -56,6 +58,26 @@ $row = $form->addRow();
 $row = $form->addRow();
     $row->addLabel('paymentDate', __('Payment Date'));
     $row->addDate('paymentDate')->setValue(Format::date(date('Y-m-d')))->required();
+
+$row = $form->addRow();
+    $row->addLabel('paymentOption', __('Payment Plan (first payment only)'));
+    $row->addSelect('paymentOption')
+        ->fromArray([
+            '' => __('Select one option'),
+            'FULL' => __('Full Payment (10% discount)'),
+            '4' => __('Installments in 4 months'),
+            '8' => __('Installments in 8 months'),
+        ])
+        ->required();
+
+$row = $form->addRow();
+    $row->addContent(
+        "<div class='text-xs text-gray-600'>"
+        .__('Finance Note')
+        .": "
+        .sprintf(__('Configured initial deposit for installment plans: %1$s'), number_format($configuredDeposit, 2, '.', ','))
+        ."</div>"
+    );
 
 $form->addRow()->addSubmit(__('Save & Print Receipt'));
 

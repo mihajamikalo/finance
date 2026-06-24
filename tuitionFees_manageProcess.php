@@ -37,6 +37,7 @@ if (isActionAccessible($guid, $connection2, '/modules/FinanceCustom/tuitionFees_
 $gibbonSchoolYearID = intval($session->get('gibbonSchoolYearID'));
 $fees = $_POST['fee'] ?? [];
 $actives = $_POST['active'] ?? [];
+$installmentInitialDeposit = max(0, floatval($_POST['installmentInitialDeposit'] ?? 0));
 
 try {
     $connection2->beginTransaction();
@@ -70,12 +71,27 @@ try {
         $stmt->execute($data);
     }
 
+    $stmtSetting = $connection2->prepare("INSERT INTO gibbonSetting
+        SET scope='FinanceCustom',
+            name='installmentInitialDeposit',
+            nameDisplay='Required Initial Deposit',
+            description='Configured initial deposit amount required when choosing installment plans.',
+            value=:value,
+            type='number'
+        ON DUPLICATE KEY UPDATE value=VALUES(value)");
+    $stmtSetting->execute([
+        'value' => strval($installmentInitialDeposit),
+    ]);
+
     financeMgmtLog(
         $connection2,
         'TUITION_FEE_UPDATE',
         null,
         strval($session->get('gibbonPersonID')),
-        json_encode(['gibbonSchoolYearID' => $gibbonSchoolYearID])
+        json_encode([
+            'gibbonSchoolYearID' => $gibbonSchoolYearID,
+            'installmentInitialDeposit' => $installmentInitialDeposit,
+        ])
     );
 
     $connection2->commit();

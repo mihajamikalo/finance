@@ -34,6 +34,7 @@ $gibbonSchoolYearID = intval($session->get('gibbonSchoolYearID'));
 
 echo '<h2>'.__('Tuition Fees by Year Group').'</h2>';
 echo '<p>'.__('Set one tuition fee per year group for the current school year.').'</p>';
+$configuredDeposit = financeMgmtGetConfiguredInitialDeposit();
 
 try {
     $sqlYG = "SELECT gibbonYearGroupID, name, nameShort
@@ -57,6 +58,16 @@ try {
 
 $form = Form::create('tuitionFees', $session->get('absoluteURL').'/modules/FinanceCustom/tuitionFees_manageProcess.php');
 $form->addHiddenValue('address', $session->get('address'));
+
+$form->addRow()->addHeading(__('Installment Settings'));
+
+$row = $form->addRow();
+    $row->addLabel('installmentInitialDeposit', __('Required Initial Deposit'));
+    $row->addNumber('installmentInitialDeposit')
+        ->decimalPlaces(2)
+        ->minimum(0)
+        ->setValue($configuredDeposit)
+        ->required();
 
 $form->addRow()->addHeading(__('Fees'));
 
