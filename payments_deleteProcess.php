@@ -46,9 +46,7 @@ try {
     $stmt->execute(['id' => $paymentID]);
     $payment = $stmt->fetch();
     if (empty($payment)) {
-        if ($connection2->inTransaction()) {
-            $connection2->rollBack();
-        }
+        $connection2->rollBack();
         header("Location: {$returnTo}&return=error3");
         exit;
     }
@@ -64,20 +62,19 @@ try {
         json_encode(['deletedPayment' => $payment])
     );
 
+    // Rebuild instalment ledger after deletion.
     $plan = financeMgmtGetStudentPaymentPlan(
         $connection2,
         intval($payment['gibbonPersonIDStudent']),
         intval($payment['gibbonSchoolYearID'])
     );
-    if (!empty($plan)) {
+    if ($plan !== null) {
         financeMgmtRebuildPlanLedger($connection2, $plan);
     }
 
     $connection2->commit();
 } catch (PDOException $e) {
-    if ($connection2->inTransaction()) {
-        $connection2->rollBack();
-    }
+    if ($connection2->inTransaction()) $connection2->rollBack();
     header("Location: {$returnTo}&return=error2");
     exit;
 }

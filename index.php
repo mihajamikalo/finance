@@ -158,82 +158,101 @@ try {
     $stmtOut->execute();
     $outstanding = $stmtOut->fetchAll();
 
-    $monthlyExpected = 0.0;
-    $monthlyReceived = 0.0;
-    $monthlyOverdue = 0.0;
-    $overdueStudents = [];
+    // ── Monthly stats + overdue alerts (derived from payment plans) ───────────
+    $monthlyExpected  = 0.0;
+    $monthlyReceived  = 0.0;
+    $monthlyOverdue   = 0.0;
+    $overdueStudents  = [];
 
     $sqlPlans = "SELECT plan.*,
             per.preferredName, per.surname, per.studentID,
             yg.nameShort AS className
         FROM gibbonFinanceMgmtPaymentPlan AS plan
-        JOIN gibbonPerson AS per ON (plan.gibbonPersonIDStudent=per.gibbonPersonID)
-        LEFT JOIN gibbonYearGroup AS yg ON (plan.gibbonYearGroupID=yg.gibbonYearGroupID)
-        WHERE plan.gibbonSchoolYearID=:gibbonSchoolYearID
-            AND plan.status='ACTIVE'";
+        JOIN gibbonPerson AS per  ON (plan.gibbonPersonIDStudent = per.gibbonPersonID)
+        LEFT JOIN gibbonYearGroup AS yg ON (plan.gibbonYearGroupID = yg.gibbonYearGroupID)
+        WHERE plan.gibbonSchoolYearID = :gibbonSchoolYearID
+            AND plan.status = 'ACTIVE'";
     $stmtPlans = $connection2->prepare($sqlPlans);
     $stmtPlans->execute(['gibbonSchoolYearID' => $gibbonSchoolYearID]);
-    $plans = $stmtPlans->fetchAll();
+    $activePlans = $stmtPlans->fetchAll();
 
-    foreach ($plans as $plan) {
-        $payments = financeMgmtGetStudentPayments($connection2, intval($plan['gibbonPersonIDStudent']), $gibbonSchoolYearID);
-        $evaluation = financeMgmtEvaluatePlan($plan, $payments, date('Y-m-d'));
+    foreach ($activePlans as $activePlan) {
+        $planPayments = financeMgmtGetStudentPayments(
+            $connection2,
+            intval($activePlan['gibbonPersonIDStudent']),
+            $gibbonSchoolYearID
+        );
+        $eval = financeMgmtEvaluatePlan($activePlan, $planPayments, date('Y-m-d'));
 
-        $monthlyExpected += floatval($evaluation['totals']['expectedCurrentMonth']);
-        $monthlyReceived += floatval($evaluation['totals']['paidCurrentMonth']);
-        $monthlyOverdue += floatval($evaluation['totals']['overdueAmount']);
+        $monthlyExpected += $eval['totals']['expectedCurrentMonth'];
+        $monthlyReceived += $eval['totals']['paidCurrentMonth'];
+        $monthlyOverdue  += $eval['totals']['overdueAmount'];
 
-        $lateMonths = intval($evaluation['totals']['lateMonths']);
-        $overdueAmount = floatval($evaluation['totals']['overdueAmount']);
-        if ($lateMonths <= 0 && $overdueAmount <= 0.009) {
+        $lateMonths  = intval($eval['totals']['lateMonths']);
+        $overdueAmt  = floatval($eval['totals']['overdueAmount']);
+
+        if ($lateMonths <= 0 && $overdueAmt <= 0.009) {
             continue;
         }
 
-        $status = 'moderate';
-        if ($lateMonths >= 3 || $overdueAmount >= (floatval($plan['installmentAmount']) * 2)) {
-            $status = 'critical';
-        } elseif ($lateMonths <= 0) {
-            $status = 'ok';
-        }
+        // Severity: critical if ≥ 3 months late OR overdue > 2× monthly instalment.
+        $instAmt  = floatval($activePlan['installmentAmount']);
+        $severity = ($lateMonths >= 3 || ($instAmt > 0 && $overdueAmt >= $instAmt * 2.0))
+            ? 'critical' : 'moderate';
 
         $overdueStudents[] = [
-            'gibbonPersonIDStudent' => intval($plan['gibbonPersonIDStudent']),
-            'studentName' => Format::name('', $plan['preferredName'], $plan['surname'], 'Student', true),
-            'studentID' => $plan['studentID'],
-            'className' => $plan['className'] ?? __('N/A'),
-            'lateMonths' => $lateMonths,
-            'overdueAmount' => $overdueAmount,
-            'lastPaymentDate' => $evaluation['totals']['lastPaymentDate'],
-            'status' => $status,
+            'gibbonPersonIDStudent' => intval($activePlan['gibbonPersonIDStudent']),
+            'studentName'           => Format::name('', $activePlan['preferredName'], $activePlan['surname'], 'Student', true),
+            'studentID'             => $activePlan['studentID'],
+            'className'             => $activePlan['className'] ?? __('N/A'),
+            'lateMonths'            => $lateMonths,
+            'overdueAmount'         => $overdueAmt,
+            'lastPaymentDate'       => $eval['totals']['lastPaymentDate'],
+            'severity'              => $severity,
         ];
     }
 
+    // Sort: most months overdue first, then largest amount.
     usort($overdueStudents, function ($a, $b) {
-        if ($a['lateMonths'] === $b['lateMonths']) {
-            return $b['overdueAmount'] <=> $a['overdueAmount'];
+        if ($a['lateMonths'] !== $b['lateMonths']) {
+            return $b['lateMonths'] <=> $a['lateMonths'];
         }
-
-        return $b['lateMonths'] <=> $a['lateMonths'];
+        return $b['overdueAmount'] <=> $a['overdueAmount'];
     });
+
 } catch (PDOException $e) {
     $page->addError(__('A database error occurred.'));
     return;
 }
 
 echo "<div class='flex flex-wrap gap-4 my-4'>";
-echo "<div class='w-full md:w-1/3 bg-white border rounded p-4'>";
+
+// KPI 1 – Total received in selected range
+echo "<div class='w-full md:w-1/4 bg-white border rounded p-4'>";
 echo "<div class='text-sm text-gray-600'>".__('Total Payments Received')."</div>";
 echo "<div class='text-2xl font-bold'>".number_format($totalPayments, 2, '.', ',')."</div>";
 echo "<div class='text-xs text-gray-500 mt-1'>".sprintf(__('From %1$s to %2$s'), Format::date($dateStart), Format::date($dateEnd))."</div>";
 echo "</div>";
-echo "<div class='w-full md:w-1/3 bg-white border rounded p-4'>";
+
+// KPI 2 – Expected this month
+echo "<div class='w-full md:w-1/4 bg-white border rounded p-4'>";
 echo "<div class='text-sm text-gray-600'>".__('Expected This Month')."</div>";
 echo "<div class='text-2xl font-bold'>".number_format($monthlyExpected, 2, '.', ',')."</div>";
 echo "</div>";
-echo "<div class='w-full md:w-1/3 bg-white border rounded p-4'>";
-echo "<div class='text-sm text-gray-600'>".__('Overdue Amount (Today)')."</div>";
-echo "<div class='text-2xl font-bold'>".number_format($monthlyOverdue, 2, '.', ',')."</div>";
+
+// KPI 3 – Received this month
+echo "<div class='w-full md:w-1/4 bg-white border rounded p-4'>";
+echo "<div class='text-sm text-gray-600'>".__('Received This Month')."</div>";
+echo "<div class='text-2xl font-bold'>".number_format($monthlyReceived, 2, '.', ',')."</div>";
 echo "</div>";
+
+// KPI 4 – Overdue today (red if non-zero)
+$overdueStyle = ($monthlyOverdue > 0.009) ? 'color:#e74c3c' : '';
+echo "<div class='w-full md:w-1/4 bg-white border rounded p-4'>";
+echo "<div class='text-sm text-gray-600'>".__('Overdue Amount (Today)')."</div>";
+echo "<div class='text-2xl font-bold' style='{$overdueStyle}'>".number_format($monthlyOverdue, 2, '.', ',')."</div>";
+echo "</div>";
+
 echo "</div>";
 
 // Charts
@@ -252,46 +271,43 @@ $chartDate = Chart::create('paymentsByDate', 'line')
 $chartDate->addDataset('payments')->setData($dataDate);
 
 $labelsYG = array_map(fn($r) => $r['label'], $byYG);
-$dataYG = array_map(fn($r) => floatval($r['total']), $byYG);
-$chartYG = Chart::create('paymentsByYearGroup', 'bar')
+$dataYG   = array_map(fn($r) => floatval($r['total']), $byYG);
+$chartYG  = Chart::create('paymentsByYearGroup', 'bar')
     ->setLabels($labelsYG)
     ->setLegend(['display' => false])
-    ->setOptions([
-        'responsive' => true,
-        'maintainAspectRatio' => false,
-        'height' => '220px',
-    ])
+    ->setOptions(['responsive' => true, 'maintainAspectRatio' => false])
     ->setColorOpacity(0.7);
 $chartYG->addDataset('payments')->setData($dataYG);
 
+// Monthly Expected / Received / Overdue bar chart
 $chartMonthly = Chart::create('monthlyFinanceStatus', 'bar')
     ->setLabels([__('Expected'), __('Received'), __('Overdue')])
     ->setLegend(['display' => false])
-    ->setOptions([
-        'responsive' => true,
-        'maintainAspectRatio' => false,
-        'height' => '220px',
-    ])
+    ->setOptions(['responsive' => true, 'maintainAspectRatio' => false])
     ->setColorOpacity(0.75);
-$chartMonthly->addDataset('monthly')->setData([
-    $monthlyExpected,
-    $monthlyReceived,
-    $monthlyOverdue,
+$chartMonthly->addDataset(__('This month'))->setData([
+    round($monthlyExpected, 2),
+    round($monthlyReceived, 2),
+    round($monthlyOverdue,  2),
 ]);
 
 echo '<div class="flex flex-wrap gap-6 mt-6">';
-echo '<div class="w-full md:w-1/2 bg-white border rounded p-4">';
+
+echo '<div class="w-full md:w-1/3 bg-white border rounded p-4">';
 echo '<h3 class="mb-2">'.__('Payments by Date').'</h3>';
 echo '<div style="height: 240px">'.$chartDate->render().'</div>';
 echo '</div>';
-echo '<div class="w-full md:w-1/2 bg-white border rounded p-4">';
+
+echo '<div class="w-full md:w-1/3 bg-white border rounded p-4">';
 echo '<h3 class="mb-2">'.__('Payments by Year Group').'</h3>';
 echo '<div style="height: 240px">'.$chartYG->render().'</div>';
 echo '</div>';
-echo '<div class="w-full md:w-1/2 bg-white border rounded p-4">';
-echo '<h3 class="mb-2">'.__('Current Month Financial Status').'</h3>';
+
+echo '<div class="w-full md:w-1/3 bg-white border rounded p-4">';
+echo '<h3 class="mb-2">'.__('Current Month: Expected / Received / Overdue').'</h3>';
 echo '<div style="height: 240px">'.$chartMonthly->render().'</div>';
 echo '</div>';
+
 echo '</div>';
 
 echo '<div class="flex flex-wrap gap-6 mt-6">';
@@ -353,32 +369,37 @@ if (empty($outstanding)) {
 echo '</div>';
 echo '</div>';
 
+// ── Late Payments alert section ───────────────────────────────────────────────
 echo '<div class="w-full bg-white border rounded p-4 mt-6">';
 echo '<h3 class="mb-3">'.__('Late Payments').'</h3>';
 if (empty($overdueStudents)) {
-    echo "<div class='text-sm text-gray-600'>".__('There are no records to display.')."</div>";
+    echo "<div class='text-sm text-gray-600'>".__('All payment plans are up to date.')."</div>";
 } else {
     echo "<table class='smallIntBorder' cellspacing='0' style='width:100%'>";
-    echo "<tr class='head'><th>".__('Student')."</th><th>".__('Class')."</th><th style='text-align:right'>".__('Late Months')."</th><th style='text-align:right'>".__('Outstanding')."</th><th>".__('Last Payment')."</th><th>".__('Status')."</th></tr>";
+    echo "<tr class='head'>"
+        . "<th>".__('Student')."</th>"
+        . "<th>".__('Class')."</th>"
+        . "<th style='text-align:right'>".__('Months Late')."</th>"
+        . "<th style='text-align:right'>".__('Amount Overdue')."</th>"
+        . "<th>".__('Last Payment')."</th>"
+        . "<th>".__('Status')."</th>"
+        . "</tr>";
     foreach ($overdueStudents as $o) {
-        $statusLabel = __('Moderate');
-        $statusColor = '#f39c12';
-        if ($o['status'] === 'critical') {
-            $statusLabel = __('Critical');
-            $statusColor = '#e74c3c';
-        } elseif ($o['status'] === 'ok') {
-            $statusLabel = __('Up to date');
-            $statusColor = '#27ae60';
-        }
-        $studentLink = $session->get('absoluteURL').'/index.php?q=/modules/FinanceCustom/student_history.php&gibbonPersonIDStudent='.$o['gibbonPersonIDStudent'];
-        $studentLabel = $o['studentName'].' <span class="text-xs text-gray-500">('.htmlPrep($o['studentID']).')</span>';
+        $isCritical = ($o['severity'] === 'critical');
+        $color      = $isCritical ? '#e74c3c' : '#f39c12';
+        $label      = $isCritical ? __('Critical') : __('Moderate');
+        $histLink   = $session->get('absoluteURL')
+            . '/index.php?q=/modules/FinanceCustom/student_history.php&gibbonPersonIDStudent='
+            . $o['gibbonPersonIDStudent'];
+        $studentLabel = $o['studentName']
+            . ' <span class="text-xs text-gray-500">('.htmlPrep($o['studentID']).')</span>';
         echo "<tr>";
-        echo "<td><a href='".htmlPrep($studentLink)."'>".$studentLabel."</a></td>";
+        echo "<td><a href='".htmlPrep($histLink)."'>".$studentLabel."</a></td>";
         echo "<td>".htmlPrep($o['className'])."</td>";
-        echo "<td style='text-align:right'>".intval($o['lateMonths'])."</td>";
+        echo "<td style='text-align:right; font-weight:bold; color:{$color}'>".intval($o['lateMonths'])."</td>";
         echo "<td style='text-align:right'>".number_format($o['overdueAmount'], 2, '.', ',')."</td>";
         echo "<td>".(!empty($o['lastPaymentDate']) ? Format::date($o['lastPaymentDate']) : __('No payment'))."</td>";
-        echo "<td><span style='color: {$statusColor}; font-weight: bold'>".$statusLabel."</span></td>";
+        echo "<td><span style='color:{$color}; font-weight:bold'>".$label."</span></td>";
         echo "</tr>";
     }
     echo "</table>";

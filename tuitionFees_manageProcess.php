@@ -34,10 +34,10 @@ if (isActionAccessible($guid, $connection2, '/modules/FinanceCustom/tuitionFees_
     exit;
 }
 
-$gibbonSchoolYearID = intval($session->get('gibbonSchoolYearID'));
-$fees = $_POST['fee'] ?? [];
-$actives = $_POST['active'] ?? [];
-$installmentInitialDeposit = max(0, floatval($_POST['installmentInitialDeposit'] ?? 0));
+$gibbonSchoolYearID        = intval($session->get('gibbonSchoolYearID'));
+$fees                      = $_POST['fee'] ?? [];
+$actives                   = $_POST['active'] ?? [];
+$installmentInitialDeposit = max(0.0, floatval($_POST['installmentInitialDeposit'] ?? 0));
 
 try {
     $connection2->beginTransaction();
@@ -71,17 +71,16 @@ try {
         $stmt->execute($data);
     }
 
-    $stmtSetting = $connection2->prepare("INSERT INTO gibbonSetting
-        SET scope='FinanceCustom',
-            name='installmentInitialDeposit',
-            nameDisplay='Required Initial Deposit',
-            description='Configured initial deposit amount required when choosing installment plans.',
-            value=:value,
-            type='number'
-        ON DUPLICATE KEY UPDATE value=VALUES(value)");
-    $stmtSetting->execute([
-        'value' => strval($installmentInitialDeposit),
-    ]);
+    // Persist the configured initial deposit as a module setting.
+    $stmtSetting = $connection2->prepare(
+        "INSERT INTO gibbonSetting (scope, name, nameDisplay, description, value, type)
+         VALUES ('FinanceCustom', 'installmentInitialDeposit',
+                 'Required Initial Deposit',
+                 'Initial deposit required when choosing an instalment plan.',
+                 :val, 'text')
+         ON DUPLICATE KEY UPDATE value=VALUES(value)"
+    );
+    $stmtSetting->execute(['val' => strval($installmentInitialDeposit)]);
 
     financeMgmtLog(
         $connection2,
@@ -89,7 +88,7 @@ try {
         null,
         strval($session->get('gibbonPersonID')),
         json_encode([
-            'gibbonSchoolYearID' => $gibbonSchoolYearID,
+            'gibbonSchoolYearID'        => $gibbonSchoolYearID,
             'installmentInitialDeposit' => $installmentInitialDeposit,
         ])
     );

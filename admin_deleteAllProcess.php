@@ -25,8 +25,9 @@ if (!financeMgmtHasAdminCodeSessionAccess($session)) {
 try {
     $connection2->beginTransaction();
 
-    $connection2->exec("DELETE FROM gibbonFinanceMgmtStudentPayment");
+    // Delete in dependency order: ledger → payments/plans → fees → log.
     $connection2->exec("DELETE FROM gibbonFinanceMgmtInstallmentLedger");
+    $connection2->exec("DELETE FROM gibbonFinanceMgmtStudentPayment");
     $connection2->exec("DELETE FROM gibbonFinanceMgmtPaymentPlan");
     $connection2->exec("DELETE FROM gibbonFinanceMgmtTuitionFee");
     $connection2->exec("DELETE FROM gibbonFinanceMgmtAuditLog");

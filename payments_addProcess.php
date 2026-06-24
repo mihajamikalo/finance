@@ -36,10 +36,10 @@ if (isActionAccessible($guid, $connection2, '/modules/FinanceCustom/payments_add
     exit;
 }
 
-$paymentTitle = trim($_POST['paymentTitle'] ?? '');
-$studentToken = trim($_POST['gibbonPersonIDStudent'] ?? '');
-$amountPaid = floatval($_POST['amountPaid'] ?? 0);
-$paymentDate = Format::dateConvert($_POST['paymentDate'] ?? '');
+$paymentTitle  = trim($_POST['paymentTitle'] ?? '');
+$studentToken  = trim($_POST['gibbonPersonIDStudent'] ?? '');
+$amountPaid    = floatval($_POST['amountPaid'] ?? 0);
+$paymentDate   = Format::dateConvert($_POST['paymentDate'] ?? '');
 $paymentOption = trim($_POST['paymentOption'] ?? '');
 
 // Finder stores tokens as comma-separated values, enforce single selection
@@ -69,43 +69,37 @@ if ($totals['totalFee'] === null) {
     exit;
 }
 
+// Determine whether a plan already exists for this student/year.
+$existingPlan  = financeMgmtGetStudentPaymentPlan($connection2, $gibbonPersonIDStudent, $gibbonSchoolYearID);
+$paymentCount  = financeMgmtCountStudentPayments($connection2, $gibbonPersonIDStudent, $gibbonSchoolYearID);
+$isFirstPayment = ($existingPlan === null && $paymentCount === 0);
+
+// On the very first payment a valid plan option is mandatory.
+$validOptions = ['FULL', '4', '8'];
+if ($isFirstPayment && !in_array($paymentOption, $validOptions, true)) {
+    $URL .= '&return=error3';
+    header("Location: {$URL}");
+    exit;
+}
+
 try {
     $connection2->beginTransaction();
 
-    $existingPlan = financeMgmtGetStudentPaymentPlan($connection2, $gibbonPersonIDStudent, $gibbonSchoolYearID);
-    $paymentCount = financeMgmtCountStudentPayments($connection2, $gibbonPersonIDStudent, $gibbonSchoolYearID);
-
+    // Create payment plan on first payment.
     if ($existingPlan === null) {
-        if ($paymentCount === 0) {
-            if (!in_array($paymentOption, ['FULL', '4', '8'], true)) {
-                $connection2->rollBack();
-                $URL .= '&return=error3';
-                header("Location: {$URL}");
-                exit;
-            }
-
-            financeMgmtCreateStudentPaymentPlan(
-                $connection2,
-                $gibbonPersonIDStudent,
-                $gibbonSchoolYearID,
-                $gibbonYearGroupID,
-                floatval($totals['totalFee']),
-                $paymentOption,
-                $paymentDate,
-                $gibbonPersonIDCreatedBy
-            );
-        } else {
-            financeMgmtCreateStudentPaymentPlan(
-                $connection2,
-                $gibbonPersonIDStudent,
-                $gibbonSchoolYearID,
-                $gibbonYearGroupID,
-                floatval($totals['totalFee']),
-                'LEGACY',
-                $paymentDate,
-                $gibbonPersonIDCreatedBy
-            );
-        }
+        $option = in_array($paymentOption, $validOptions, true) ? $paymentOption : 'LEGACY';
+        financeMgmtCreateStudentPaymentPlan(
+            $connection2,
+            $gibbonPersonIDStudent,
+            $gibbonSchoolYearID,
+            $gibbonYearGroupID,
+            floatval($totals['totalFee']),
+            $option,
+            $paymentDate,
+            $gibbonPersonIDCreatedBy
+        );
+        // Re-fetch plan so the effective fee (with discount) is used below.
+        $existingPlan = financeMgmtGetStudentPaymentPlan($connection2, $gibbonPersonIDStudent, $gibbonSchoolYearID);
     }
 
     $data = [
@@ -155,24 +149,17 @@ try {
         strval($paymentID),
         strval($gibbonPersonIDCreatedBy),
         json_encode([
-            'student' => $gibbonPersonIDStudent,
-            'amountPaid' => $amountPaid,
-            'paymentDate' => $paymentDate,
+            'student'       => $gibbonPersonIDStudent,
+            'amountPaid'    => $amountPaid,
+            'paymentDate'   => $paymentDate,
             'receiptNumber' => $receiptNumber,
             'paymentOption' => $paymentOption,
         ])
     );
 
-    $planAfterInsert = financeMgmtGetOrCreateLegacyPlan(
-        $connection2,
-        $gibbonPersonIDStudent,
-        $gibbonSchoolYearID,
-        $gibbonYearGroupID,
-        floatval($totals['totalFee']),
-        $gibbonPersonIDCreatedBy
-    );
-    if (!empty($planAfterInsert)) {
-        financeMgmtRebuildPlanLedger($connection2, $planAfterInsert);
+    // Rebuild instalment ledger snapshot after each payment.
+    if (!empty($existingPlan)) {
+        financeMgmtRebuildPlanLedger($connection2, $existingPlan);
     }
 
     $connection2->commit();
@@ -183,7 +170,7 @@ try {
     exit;
 }
 
-// Fetch student details for receipt
+// Fetch student details for receipt.
 try {
     $sqlStudent = "SELECT preferredName, surname, studentID
         FROM gibbonPerson
@@ -195,8 +182,9 @@ try {
     $student = [];
 }
 
-$totalsAfter = financeMgmtGetStudentTotals($connection2, $gibbonPersonIDStudent, $gibbonSchoolYearID);
-$remainingBalance = max(0, floatval($totalsAfter['totalFee']) - floatval($totalsAfter['totalPaid']));
+// Use the plan's final (discounted) fee when computing remaining balance.
+$effectiveFee     = !empty($existingPlan) ? floatval($existingPlan['tuitionFeeFinal']) : floatval($totals['totalFee']);
+$remainingBalance = max(0.0, $effectiveFee - (floatval($totals['totalPaid']) + $amountPaid));
 
 $backgroundRel = strval(financeMgmtGetSettingValue('FinanceCustom', 'receiptBackgroundImage', ''));
 $backgroundAbs = '';

@@ -39,9 +39,7 @@ try {
     $stmt->execute(['id' => $paymentID]);
     $existing = $stmt->fetch();
     if (empty($existing)) {
-        if ($connection2->inTransaction()) {
-            $connection2->rollBack();
-        }
+        $connection2->rollBack();
         header("Location: {$returnTo}&return=error3");
         exit;
     }
@@ -52,9 +50,9 @@ try {
     $stmtUpdate = $connection2->prepare($sqlUpdate);
     $stmtUpdate->execute([
         'paymentTitle' => $paymentTitle,
-        'amountPaid' => $amountPaid,
-        'paymentDate' => $paymentDate,
-        'id' => $paymentID,
+        'amountPaid'   => $amountPaid,
+        'paymentDate'  => $paymentDate,
+        'id'           => $paymentID,
     ]);
 
     financeMgmtLog(
@@ -64,28 +62,23 @@ try {
         strval($session->get('gibbonPersonID')),
         json_encode([
             'before' => $existing,
-            'after' => [
-                'paymentTitle' => $paymentTitle,
-                'amountPaid' => $amountPaid,
-                'paymentDate' => $paymentDate,
-            ],
+            'after'  => ['paymentTitle' => $paymentTitle, 'amountPaid' => $amountPaid, 'paymentDate' => $paymentDate],
         ])
     );
 
+    // Rebuild instalment ledger to reflect the edited amount.
     $plan = financeMgmtGetStudentPaymentPlan(
         $connection2,
         intval($existing['gibbonPersonIDStudent']),
         intval($existing['gibbonSchoolYearID'])
     );
-    if (!empty($plan)) {
+    if ($plan !== null) {
         financeMgmtRebuildPlanLedger($connection2, $plan);
     }
 
     $connection2->commit();
 } catch (PDOException $e) {
-    if ($connection2->inTransaction()) {
-        $connection2->rollBack();
-    }
+    if ($connection2->inTransaction()) $connection2->rollBack();
     header("Location: {$returnTo}&return=error2");
     exit;
 }

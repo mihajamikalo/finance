@@ -69,12 +69,22 @@ if (empty($student)) {
     return;
 }
 
-$totals = financeMgmtGetStudentTotals($connection2, $gibbonPersonIDStudent, $gibbonSchoolYearID);
+$totals   = financeMgmtGetStudentTotals($connection2, $gibbonPersonIDStudent, $gibbonSchoolYearID);
+$plan     = financeMgmtGetStudentPaymentPlan($connection2, $gibbonPersonIDStudent, $gibbonSchoolYearID);
+$pmtRows  = financeMgmtGetStudentPayments($connection2, $gibbonPersonIDStudent, $gibbonSchoolYearID);
+$evaluation = ($plan !== null) ? financeMgmtEvaluatePlan($plan, $pmtRows, date('Y-m-d')) : null;
 
-echo '<h3>'.Format::name('', $student['preferredName'], $student['surname'], 'Student', true).' <span style="font-size: 85%; font-style: italic">('.htmlPrep($student['studentID']).')</span></h3>';
+echo '<h3>'.Format::name('', $student['preferredName'], $student['surname'], 'Student', true)
+    .' <span style="font-size: 85%; font-style: italic">('.htmlPrep($student['studentID']).')</span></h3>';
 
+// ── Summary card ─────────────────────────────────────────────────────────────
 echo "<table class='smallIntBorder' cellspacing='0' style='width: 100%'>";
-echo "<tr class='head'><th>".__('Total Tuition Fee')."</th><th>".__('Total Paid')."</th><th>".__('Remaining Balance')."</th><th>".__('Status')."</th></tr>";
+echo "<tr class='head'>"
+    . "<th>".__('Total Tuition Fee')."</th>"
+    . "<th>".__('Total Paid')."</th>"
+    . "<th>".__('Remaining Balance')."</th>"
+    . "<th>".__('Status')."</th>"
+    . "</tr>";
 echo "<tr>";
 echo "<td>".financeMgmtFormatMoney($totals['totalFee'])."</td>";
 echo "<td>".financeMgmtFormatMoney($totals['totalPaid'])."</td>";
@@ -83,41 +93,93 @@ echo "<td><b>".__($totals['status'])."</b></td>";
 echo "</tr>";
 echo "</table>";
 
-$plan = financeMgmtGetStudentPaymentPlan($connection2, $gibbonPersonIDStudent, $gibbonSchoolYearID);
-if (!empty($plan)) {
-    $paymentsForPlan = financeMgmtGetStudentPayments($connection2, $gibbonPersonIDStudent, $gibbonSchoolYearID);
-    $evaluation = financeMgmtEvaluatePlan($plan, $paymentsForPlan, date('Y-m-d'));
+// ── Payment plan details ──────────────────────────────────────────────────────
+if ($plan !== null) {
+    echo '<h2>'.__('Payment Plan').'</h2>';
 
-    echo '<h2>'.__('Installment Plan').'</h2>';
+    $planTypeLabels = [
+        'FULL'          => __('Full payment (10 % discount)'),
+        'INSTALLMENT_4' => __('4 monthly instalments'),
+        'INSTALLMENT_8' => __('8 monthly instalments'),
+        'LEGACY'        => __('Legacy (no plan)'),
+    ];
+    $planLabel = $planTypeLabels[$plan['planType']] ?? htmlPrep($plan['planType']);
+
     echo "<table class='smallIntBorder' cellspacing='0' style='width: 100%'>";
-    echo "<tr class='head'><th>".__('Plan')."</th><th>".__('Tuition (Original)')."</th><th>".__('Discount')."</th><th>".__('Tuition (Final)')."</th><th>".__('Required Deposit')."</th><th>".__('Monthly Installment')."</th></tr>";
+    echo "<tr class='head'>"
+        . "<th>".__('Plan Type')."</th>"
+        . "<th style='text-align:right'>".__('Original Fee')."</th>"
+        . "<th style='text-align:right'>".__('Discount (10 %)')."</th>"
+        . "<th style='text-align:right'>".__('Final Fee')."</th>"
+        . "<th style='text-align:right'>".__('Initial Deposit')."</th>"
+        . "<th style='text-align:right'>".__('Monthly Instalment')."</th>"
+        . "</tr>";
     echo "<tr>";
-    echo "<td>".htmlPrep(strval($plan['planType']))."</td>";
-    echo "<td>".financeMgmtFormatMoney(floatval($plan['tuitionFeeOriginal']))."</td>";
-    echo "<td>".financeMgmtFormatMoney(floatval($plan['discountAmount']))."</td>";
-    echo "<td>".financeMgmtFormatMoney(floatval($plan['tuitionFeeFinal']))."</td>";
-    echo "<td>".financeMgmtFormatMoney(floatval($plan['requiredDeposit']))."</td>";
-    echo "<td>".financeMgmtFormatMoney(floatval($plan['installmentAmount']))."</td>";
+    echo "<td>".$planLabel."</td>";
+    echo "<td style='text-align:right'>".financeMgmtFormatMoney(floatval($plan['tuitionFeeOriginal']))."</td>";
+    echo "<td style='text-align:right'>".financeMgmtFormatMoney(floatval($plan['discountAmount']))."</td>";
+    echo "<td style='text-align:right'><b>".financeMgmtFormatMoney(floatval($plan['tuitionFeeFinal']))."</b></td>";
+    echo "<td style='text-align:right'>".financeMgmtFormatMoney(floatval($plan['requiredDeposit']))."</td>";
+    echo "<td style='text-align:right'>"
+        . (floatval($plan['installmentAmount']) > 0 ? financeMgmtFormatMoney(floatval($plan['installmentAmount'])) : __('N/A'))
+        . "</td>";
     echo "</tr>";
     echo "</table>";
 
-    echo '<h3>'.__('Installment Tracking').'</h3>';
-    echo "<table class='smallIntBorder' cellspacing='0' style='width: 100%'>";
-    echo "<tr class='head'><th>#</th><th>".__('Due Date')."</th><th>".__('Expected')."</th><th>".__('Credit Carried')."</th><th>".__('Payable')."</th><th>".__('Paid')."</th><th>".__('Outstanding')."</th><th>".__('Status')."</th></tr>";
-    foreach ($evaluation['installments'] as $item) {
-        $statusLabel = ($item['isLate'] === 'Y') ? __('Late') : (($item['outstandingAmount'] > 0.009) ? __('Pending') : __('Paid'));
-        echo "<tr>";
-        echo "<td>".intval($item['installmentNumber'])."</td>";
-        echo "<td>".Format::date($item['dueDate'])."</td>";
-        echo "<td style='text-align:right'>".number_format($item['expectedAmount'], 2, '.', ',')."</td>";
-        echo "<td style='text-align:right'>".number_format($item['creditBefore'], 2, '.', ',')."</td>";
-        echo "<td style='text-align:right'>".number_format($item['payableAmount'], 2, '.', ',')."</td>";
-        echo "<td style='text-align:right'>".number_format($item['appliedAmount'], 2, '.', ',')."</td>";
-        echo "<td style='text-align:right'>".number_format($item['outstandingAmount'], 2, '.', ',')."</td>";
-        echo "<td>".$statusLabel."</td>";
-        echo "</tr>";
+    // ── Instalment schedule with carry-forward credit ─────────────────────────
+    if ($evaluation !== null && !empty($evaluation['installments'])) {
+        echo '<h3>'.__('Instalment Schedule').'</h3>';
+        echo '<p class="text-sm text-gray-600">'
+            . __('Credit carried forward: any surplus from a payment is automatically deducted from the next instalment.')
+            . '</p>';
+
+        echo "<table class='smallIntBorder' cellspacing='0' style='width: 100%'>";
+        echo "<tr class='head'>"
+            . "<th>#</th>"
+            . "<th>".__('Label')."</th>"
+            . "<th>".__('Due Date')."</th>"
+            . "<th style='text-align:right'>".__('Expected')."</th>"
+            . "<th style='text-align:right'>".__('Credit Carried')."</th>"
+            . "<th style='text-align:right'>".__('Payable')."</th>"
+            . "<th style='text-align:right'>".__('Credit After')."</th>"
+            . "<th style='text-align:right'>".__('Outstanding')."</th>"
+            . "<th>".__('Status')."</th>"
+            . "</tr>";
+
+        foreach ($evaluation['installments'] as $item) {
+            $isLate = ($item['isLate'] === 'Y');
+            $isPaid = ($item['outstandingAmount'] <= 0.009);
+            $isFuture = ($item['isDue'] === 'N');
+
+            if ($isLate) {
+                $statusLabel = __('Late');
+                $statusColor = '#e74c3c';
+            } elseif ($isPaid) {
+                $statusLabel = __('Paid');
+                $statusColor = '#27ae60';
+            } elseif ($isFuture) {
+                $statusLabel = __('Upcoming');
+                $statusColor = '#95a5a6';
+            } else {
+                $statusLabel = __('Due');
+                $statusColor = '#f39c12';
+            }
+
+            echo "<tr>";
+            echo "<td>".intval($item['installmentNumber'])."</td>";
+            echo "<td>".htmlPrep($item['label'])."</td>";
+            echo "<td>".Format::date($item['dueDate'])."</td>";
+            echo "<td style='text-align:right'>".number_format($item['expectedAmount'], 2, '.', ',')."</td>";
+            echo "<td style='text-align:right'>".number_format($item['creditBefore'], 2, '.', ',')."</td>";
+            echo "<td style='text-align:right'><b>".number_format($item['payableAmount'], 2, '.', ',')."</b></td>";
+            echo "<td style='text-align:right'>".number_format($item['creditAfter'], 2, '.', ',')."</td>";
+            echo "<td style='text-align:right'>".number_format($item['outstandingAmount'], 2, '.', ',')."</td>";
+            echo "<td><span style='color:{$statusColor}; font-weight:bold'>".$statusLabel."</span></td>";
+            echo "</tr>";
+        }
+
+        echo "</table>";
     }
-    echo "</table>";
 }
 
 /** @var StudentPaymentGateway $paymentGateway */

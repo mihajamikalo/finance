@@ -33,7 +33,14 @@ $page->breadcrumbs->add(__('Add Payment'));
 
 echo '<h2>'.__('Record Payment').'</h2>';
 
+// Show the configured deposit so the Finance team knows what to expect.
 $configuredDeposit = financeMgmtGetConfiguredInitialDeposit();
+echo "<p class='text-sm text-gray-600' style='margin-bottom:12px'>"
+    . sprintf(
+        __('Configured initial deposit for instalment plans: <strong>%1$s</strong>'),
+        number_format($configuredDeposit, 2, '.', ',')
+    )
+    . "</p>";
 
 $form = Form::create('financePaymentAdd', $session->get('absoluteURL').'/modules/FinanceCustom/payments_addProcess.php');
 $form->addHiddenValue('address', $session->get('address'));
@@ -59,25 +66,18 @@ $row = $form->addRow();
     $row->addLabel('paymentDate', __('Payment Date'));
     $row->addDate('paymentDate')->setValue(Format::date(date('Y-m-d')))->required();
 
+// Payment-plan selector — only shown on the first payment; the process script
+// auto-detects whether a plan already exists and ignores this field if so.
 $row = $form->addRow();
-    $row->addLabel('paymentOption', __('Payment Plan (first payment only)'));
+    $row->addLabel('paymentOption', __('Payment Plan'))
+        ->description(__('Required for the very first payment. Ignored for subsequent payments.'));
     $row->addSelect('paymentOption')
         ->fromArray([
-            '' => __('Select one option'),
-            'FULL' => __('Full Payment (10% discount)'),
-            '4' => __('Installments in 4 months'),
-            '8' => __('Installments in 8 months'),
-        ])
-        ->required();
-
-$row = $form->addRow();
-    $row->addContent(
-        "<div class='text-xs text-gray-600'>"
-        .__('Finance Note')
-        .": "
-        .sprintf(__('Configured initial deposit for installment plans: %1$s'), number_format($configuredDeposit, 2, '.', ','))
-        ."</div>"
-    );
+            ''     => __('— choose a plan (first payment only) —'),
+            'FULL' => __('Full payment with 10 % discount'),
+            '4'    => __('4 monthly instalments'),
+            '8'    => __('8 monthly instalments'),
+        ]);
 
 $form->addRow()->addSubmit(__('Save & Print Receipt'));
 

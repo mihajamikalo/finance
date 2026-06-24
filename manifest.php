@@ -78,22 +78,23 @@ $moduleTables[] = "CREATE TABLE IF NOT EXISTS `gibbonFinanceMgmtAuditLog` (
 
 $moduleTables[] = "CREATE TABLE IF NOT EXISTS `gibbonFinanceMgmtPaymentPlan` (
   `gibbonFinanceMgmtPaymentPlanID` int(12) UNSIGNED ZEROFILL NOT NULL AUTO_INCREMENT,
-  `gibbonPersonIDStudent` int(10) UNSIGNED ZEROFILL NOT NULL,
-  `gibbonSchoolYearID` int(3) UNSIGNED ZEROFILL NOT NULL,
-  `gibbonYearGroupID` int(3) UNSIGNED ZEROFILL NOT NULL,
-  `planType` varchar(20) NOT NULL DEFAULT 'LEGACY',
-  `tuitionFeeOriginal` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `discountRate` decimal(5,2) NOT NULL DEFAULT 0.00,
-  `discountAmount` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `tuitionFeeFinal` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `requiredDeposit` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `installmentCount` tinyint(3) UNSIGNED NOT NULL DEFAULT 0,
-  `installmentAmount` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `planStartDate` date NOT NULL,
-  `status` enum('ACTIVE','CLOSED') NOT NULL DEFAULT 'ACTIVE',
+  `gibbonPersonIDStudent`          int(10) UNSIGNED ZEROFILL NOT NULL,
+  `gibbonSchoolYearID`             int(3)  UNSIGNED ZEROFILL NOT NULL,
+  `gibbonYearGroupID`              int(3)  UNSIGNED ZEROFILL NOT NULL,
+  `planType`            varchar(20)      NOT NULL DEFAULT 'LEGACY'
+                        COMMENT 'FULL | INSTALLMENT_4 | INSTALLMENT_8 | LEGACY',
+  `tuitionFeeOriginal`  decimal(14,2)    NOT NULL DEFAULT 0.00,
+  `discountRate`        decimal(5,2)     NOT NULL DEFAULT 0.00,
+  `discountAmount`      decimal(14,2)    NOT NULL DEFAULT 0.00,
+  `tuitionFeeFinal`     decimal(14,2)    NOT NULL DEFAULT 0.00,
+  `requiredDeposit`     decimal(14,2)    NOT NULL DEFAULT 0.00,
+  `installmentCount`    tinyint(3) UNSIGNED NOT NULL DEFAULT 0,
+  `installmentAmount`   decimal(14,2)    NOT NULL DEFAULT 0.00,
+  `planStartDate`       date             NOT NULL,
+  `status`              enum('ACTIVE','CLOSED') NOT NULL DEFAULT 'ACTIVE',
   `gibbonPersonIDCreatedBy` int(10) UNSIGNED ZEROFILL NOT NULL,
-  `createdAt` datetime NOT NULL,
-  `updatedAt` datetime NOT NULL,
+  `createdAt`           datetime         NOT NULL,
+  `updatedAt`           datetime         NOT NULL,
   PRIMARY KEY (`gibbonFinanceMgmtPaymentPlanID`),
   UNIQUE KEY `studentYear` (`gibbonPersonIDStudent`,`gibbonSchoolYearID`),
   KEY `gibbonSchoolYearID` (`gibbonSchoolYearID`)
@@ -101,20 +102,23 @@ $moduleTables[] = "CREATE TABLE IF NOT EXISTS `gibbonFinanceMgmtPaymentPlan` (
 
 $moduleTables[] = "CREATE TABLE IF NOT EXISTS `gibbonFinanceMgmtInstallmentLedger` (
   `gibbonFinanceMgmtInstallmentLedgerID` int(12) UNSIGNED ZEROFILL NOT NULL AUTO_INCREMENT,
-  `gibbonFinanceMgmtPaymentPlanID` int(12) UNSIGNED ZEROFILL NOT NULL,
-  `gibbonFinanceMgmtStudentPaymentID` int(12) UNSIGNED ZEROFILL DEFAULT NULL,
-  `installmentNumber` int(4) UNSIGNED NOT NULL,
-  `dueDate` date NOT NULL,
-  `expectedAmount` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `creditBefore` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `payableAmount` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `appliedAmount` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `creditAfter` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `outstandingAfter` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `isLate` enum('Y','N') NOT NULL DEFAULT 'N',
-  `snapshotAt` datetime NOT NULL,
+  `gibbonFinanceMgmtPaymentPlanID`       int(12) UNSIGNED ZEROFILL NOT NULL,
+  `gibbonFinanceMgmtStudentPaymentID`    int(12) UNSIGNED ZEROFILL DEFAULT NULL,
+  `installmentNumber` int(4)     UNSIGNED NOT NULL,
+  `dueDate`           date                NOT NULL,
+  `expectedAmount`    decimal(14,2)       NOT NULL DEFAULT 0.00,
+  `creditBefore`      decimal(14,2)       NOT NULL DEFAULT 0.00
+                      COMMENT 'Surplus carried forward from prior instalments',
+  `payableAmount`     decimal(14,2)       NOT NULL DEFAULT 0.00
+                      COMMENT 'Amount actually owed after applying credit',
+  `appliedAmount`     decimal(14,2)       NOT NULL DEFAULT 0.00,
+  `creditAfter`       decimal(14,2)       NOT NULL DEFAULT 0.00
+                      COMMENT 'Surplus to carry forward to next instalment',
+  `outstandingAfter`  decimal(14,2)       NOT NULL DEFAULT 0.00,
+  `isLate`            enum('Y','N')       NOT NULL DEFAULT 'N',
+  `snapshotAt`        datetime            NOT NULL,
   PRIMARY KEY (`gibbonFinanceMgmtInstallmentLedgerID`),
-  KEY `plan_installment` (`gibbonFinanceMgmtPaymentPlanID`,`installmentNumber`)
+  KEY `plan_number` (`gibbonFinanceMgmtPaymentPlanID`,`installmentNumber`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3";
 
 // Add gibbonSettings entries
@@ -131,7 +135,7 @@ $gibbonSetting[] = "INSERT INTO `gibbonSetting` (`scope`, `name`, `nameDisplay`,
 ('FinanceCustom', 'adminAccessCode', 'Finance Admin Access Code', 'Hidden admin code required for advanced FinanceCustom admin pages. Store this code securely and rotate it if needed.', CONCAT(UPPER(SUBSTRING(MD5(UUID()),1,6)), '-', UPPER(SUBSTRING(MD5(RAND()),1,6))), 'text')";
 
 $gibbonSetting[] = "INSERT INTO `gibbonSetting` (`scope`, `name`, `nameDisplay`, `description`, `value`, `type`) VALUES
-('FinanceCustom', 'installmentInitialDeposit', 'Required Initial Deposit', 'Configured initial deposit amount required when choosing installment plans.', '0', 'number')";
+('FinanceCustom', 'installmentInitialDeposit', 'Required Initial Deposit', 'Initial deposit amount required when a student chooses an instalment plan. Configure this before any first payment.', '0', 'text')";
 
 // Action rows 
 // One array per action
