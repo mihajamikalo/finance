@@ -134,8 +134,8 @@ $gibbonSetting[] = "INSERT INTO `gibbonSetting` (`scope`, `name`, `nameDisplay`,
 $gibbonSetting[] = "INSERT INTO `gibbonSetting` (`scope`, `name`, `nameDisplay`, `description`, `value`, `type`) VALUES
 ('FinanceCustom', 'adminAccessCode', 'Finance Admin Access Code', 'Hidden admin code required for advanced FinanceCustom admin pages. Store this code securely and rotate it if needed.', CONCAT(UPPER(SUBSTRING(MD5(UUID()),1,6)), '-', UPPER(SUBSTRING(MD5(RAND()),1,6))), 'text')";
 
-$gibbonSetting[] = "INSERT INTO `gibbonSetting` (`scope`, `name`, `nameDisplay`, `description`, `value`, `type`) VALUES
-('FinanceCustom', 'installmentInitialDeposit', 'Required Initial Deposit', 'Initial deposit amount required when a student chooses an instalment plan. Configure this before any first payment.', '0', 'text')";
+$gibbonSetting[] = "INSERT INTO `gibbonSetting` (`scope`, `name`, `nameDisplay`, `description`, `value`) VALUES
+('FinanceCustom', 'installmentInitialDeposit', 'Required Initial Deposit', 'Initial deposit amount required when a student chooses an instalment plan. Configure this before any first payment.', '0')";
 
 // Action rows 
 // One array per action

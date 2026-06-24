@@ -72,9 +72,9 @@ CREATE TABLE IF NOT EXISTS `gibbonFinanceMgmtInstallmentLedger` (
   PRIMARY KEY (`gibbonFinanceMgmtInstallmentLedgerID`),
   KEY `plan_number` (`gibbonFinanceMgmtPaymentPlanID`,`installmentNumber`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;end
-INSERT INTO gibbonSetting (`scope`, `name`, `nameDisplay`, `description`, `value`, `type`)
+INSERT INTO gibbonSetting (`scope`, `name`, `nameDisplay`, `description`, `value`)
 SELECT 'FinanceCustom', 'installmentInitialDeposit', 'Required Initial Deposit',
-       'Initial deposit required when choosing an instalment plan.', '0', 'text'
+       'Initial deposit required when choosing an instalment plan.', '0'
 FROM DUAL WHERE NOT EXISTS (
     SELECT 1 FROM gibbonSetting WHERE scope='FinanceCustom' AND name='installmentInitialDeposit'
 );end";

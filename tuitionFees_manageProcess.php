@@ -73,11 +73,11 @@ try {
 
     // Persist the configured initial deposit as a module setting.
     $stmtSetting = $connection2->prepare(
-        "INSERT INTO gibbonSetting (scope, name, nameDisplay, description, value, type)
+        "INSERT INTO gibbonSetting (scope, name, nameDisplay, description, value)
          VALUES ('FinanceCustom', 'installmentInitialDeposit',
                  'Required Initial Deposit',
                  'Initial deposit required when choosing an instalment plan.',
-                 :val, 'text')
+                 :val)
          ON DUPLICATE KEY UPDATE value=VALUES(value)"
     );
     $stmtSetting->execute(['val' => strval($installmentInitialDeposit)]);
