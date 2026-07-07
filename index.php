@@ -33,6 +33,16 @@ if (isActionAccessible($guid, $connection2, '/modules/FinanceCustom/index.php') 
 $page->breadcrumbs->add(__('Tableau de bord Finance'));
 $gibbonSchoolYearID = intval($session->get('gibbonSchoolYearID'));
 
+// Messages de retour spécifiques au module
+$return = strval($_GET['return'] ?? '');
+if ($return === 'paymentHistoryDeleted') {
+    $page->addSuccess(__('L\'historique des paiements a été supprimé avec succès.'));
+} elseif ($return === 'otpNoEmail') {
+    $page->addError(__('Aucun email administrateur trouvé. Configurez l\'email OTP dans les paramètres du module.'));
+} elseif ($return === 'otpSendFail') {
+    $page->addError(__('Impossible d\'envoyer l\'email OTP. Vérifiez la configuration du serveur de messagerie.'));
+}
+
 $dateStartInput = $_GET['dateStart'] ?? ($_POST['dateStart'] ?? '');
 $dateEndInput = $_GET['dateEnd'] ?? ($_POST['dateEnd'] ?? '');
 $dateStart = !empty($dateStartInput) ? Format::dateConvert($dateStartInput) : date('Y-m-d', strtotime('-30 days'));
@@ -45,6 +55,30 @@ if ($dateStart > $dateEnd) {
 }
 
 echo '<h2>'.__('Vue d\'ensemble').'</h2>';
+
+// ── Zone dangereuse : suppression sécurisée par OTP ──────────────────────────
+$dangerForm = Form::create(
+    'financeDeleteAllHistoryOtp',
+    $session->get('absoluteURL').'/modules/FinanceCustom/payments_deleteOtpRequestProcess.php'
+);
+$dangerForm->addHiddenValue('address', $session->get('address'));
+$dangerRow = $dangerForm->addRow();
+$dangerRow->addContent(
+    '<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:#fff5f5;border:1px solid #f5c6cb;border-radius:6px;">'
+    . '<span class="material-icons" style="color:#c0392b;font-size:22px">warning</span>'
+    . '<span style="color:#922b21;font-weight:bold;font-size:13px">'.__('Zone dangereuse').'</span>'
+    . '<span style="color:#666;font-size:12px">'.__('Cette action supprimera définitivement tout l\'historique des paiements. Un code OTP sera envoyé aux administrateurs pour confirmation.').'</span>'
+    . '</div>'
+);
+$dangerRow2 = $dangerForm->addRow();
+$dangerRow2->addContent(
+    '<button type="submit" style="background:#c0392b;color:#fff;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:6px;" '
+    . 'onclick="return confirm(\''.__('Un code OTP sera envoyé aux administrateurs par email. Continuer ?').'\');">'
+    . '<span class="material-icons" style="font-size:16px">delete_forever</span>'
+    . __('Supprimer tout l\'historique (OTP requis)')
+    . '</button>'
+);
+echo $dangerForm->getOutput();
 
 $form = Form::create('financeDashboardFilters', $session->get('absoluteURL').'/index.php?q=/modules/FinanceCustom/index.php');
 $form->addRow()->addHeading(__('Filtres'));

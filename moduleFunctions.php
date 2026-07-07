@@ -611,3 +611,120 @@ function financeMgmtRebuildPlanLedger(PDO $connection2, array $plan): void
     }
 }
 
+// ── Fonctions OTP pour la suppression sécurisée de l'historique ──────────────
+
+/**
+ * Génère un code OTP numérique aléatoire.
+ */
+function financeMgmtGenerateOtpCode(int $length = 6): string
+{
+    $digits = '';
+    for ($i = 0; $i < $length; $i++) {
+        $digits .= strval(random_int(0, 9));
+    }
+    return $digits;
+}
+
+/**
+ * Lit l'état OTP stocké en session.
+ */
+function financeMgmtGetOtpSessionState(): array
+{
+    if (!isset($_SESSION['financeCustomDeleteHistoryOtp']) || !is_array($_SESSION['financeCustomDeleteHistoryOtp'])) {
+        return [];
+    }
+    return $_SESSION['financeCustomDeleteHistoryOtp'];
+}
+
+/**
+ * Sauvegarde l'état OTP en session.
+ */
+function financeMgmtSetOtpSessionState(array $state): void
+{
+    if (!isset($_SESSION) || !is_array($_SESSION)) {
+        return;
+    }
+    $_SESSION['financeCustomDeleteHistoryOtp'] = $state;
+}
+
+/**
+ * Supprime l'état OTP de la session.
+ */
+function financeMgmtClearOtpSessionState(): void
+{
+    if (isset($_SESSION['financeCustomDeleteHistoryOtp'])) {
+        unset($_SESSION['financeCustomDeleteHistoryOtp']);
+    }
+}
+
+/**
+ * Retourne la liste des emails administrateurs qui recevront le code OTP.
+ * Priorité : paramètre de module `deleteOtpAdminEmails`, sinon tous les admins Gibbon.
+ */
+function financeMgmtGetOtpAdminEmails(PDO $connection2): array
+{
+    $configured = trim(strval(financeMgmtGetSettingValue('FinanceCustom', 'deleteOtpAdminEmails', '')));
+    if ($configured !== '') {
+        $emails = preg_split('/[,;]+/', $configured) ?: [];
+        $emails = array_values(array_filter(array_map('trim', $emails), function ($email) {
+            return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+        }));
+        if (!empty($emails)) {
+            return $emails;
+        }
+    }
+
+    $emails = [];
+    try {
+        $sql = "SELECT DISTINCT p.email
+            FROM gibbonPerson AS p
+            JOIN gibbonRole AS r ON (p.gibbonRoleIDPrimary=r.gibbonRoleID)
+            WHERE p.status='Full'
+                AND p.email IS NOT NULL
+                AND p.email<>''
+                AND (r.name LIKE '%Admin%' OR r.nameShort LIKE '%Admin%')
+            ORDER BY p.email";
+        $stmt = $connection2->prepare($sql);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_COLUMN, 0);
+        foreach ($rows as $email) {
+            $email = trim(strval($email));
+            if (filter_var($email, FILTER_VALIDATE_EMAIL) !== false) {
+                $emails[$email] = $email;
+            }
+        }
+    } catch (PDOException $e) {
+        // Retourner la liste vide en cas d'erreur DB.
+    }
+    return array_values($emails);
+}
+
+/**
+ * Envoie le code OTP par email aux administrateurs.
+ * Retourne le nombre d'envois réussis.
+ */
+function financeMgmtSendOtpEmail(array $emails, string $otpCode, string $requestorName, string $expiresLabel): int
+{
+    if (empty($emails)) {
+        return 0;
+    }
+
+    $subject = '[FinanceCustom] OTP - Suppression de l\'historique des paiements';
+    $body    = "Une demande de suppression de tout l'historique des paiements a été initiée dans FinanceCustom.\n\n"
+             . "Code de confirmation : {$otpCode}\n"
+             . "Demandé par : {$requestorName}\n"
+             . "Expire dans : {$expiresLabel}\n\n"
+             . "Si vous n'attendiez pas cette demande, contactez immédiatement votre administrateur système.";
+
+    $headers  = "MIME-Version: 1.0\r\n";
+    $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+
+    $sent = 0;
+    foreach ($emails as $email) {
+        if (mail($email, $subject, $body, $headers)) {
+            $sent++;
+        }
+    }
+    return $sent;
+}
+

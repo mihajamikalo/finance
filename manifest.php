@@ -280,5 +280,25 @@ $actionRows[] = [
     'categoryPermissionOther'   => 'N',
 ];
 
+$actionRows[] = [
+    'name'                      => 'Vérification OTP Suppression Historique',
+    'precedence'                => '0',
+    'category'                  => 'Administration',
+    'description'               => 'Page de saisie du code OTP avant suppression définitive de l\'historique des paiements.',
+    'URLList'                   => 'payments_deleteOtpVerify.php,payments_deleteOtpVerifyProcess.php,payments_deleteOtpRequestProcess.php',
+    'entryURL'                  => 'payments_deleteOtpVerify.php',
+    'entrySidebar'              => 'N',
+    'menuShow'                  => 'N',
+    'defaultPermissionAdmin'    => 'Y',
+    'defaultPermissionTeacher'  => 'N',
+    'defaultPermissionStudent'  => 'N',
+    'defaultPermissionParent'   => 'N',
+    'defaultPermissionSupport'  => 'N',
+    'categoryPermissionStaff'   => 'Y',
+    'categoryPermissionStudent' => 'N',
+    'categoryPermissionParent'  => 'N',
+    'categoryPermissionOther'   => 'N',
+];
+
 // Hooks
 $hooks[] = ''; // Serialised array to create hook and set options. See Hooks documentation online.
