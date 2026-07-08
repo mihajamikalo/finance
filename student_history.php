@@ -21,7 +21,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 use Gibbon\Forms\Form;
 use Gibbon\Services\Format;
-use Gibbon\Tables\DataTable;
 use Gibbon\Domain\QueryCriteria;
 use Gibbon\Module\FinanceCustom\Domain\StudentPaymentGateway;
 
@@ -218,73 +217,86 @@ if (!empty($rows) && $totals['totalFee'] !== null) {
 
 echo '<h2>'.__('Paiements').'</h2>';
 
-$table = DataTable::create('studentPayments');
-$table->addColumn('paymentDate', __('Date'))->format(function ($row) {
-    return Format::date($row['paymentDate']);
-});
-$table->addColumn('paymentTitle', __('Libellé'))->format(function ($row) {
-    return htmlPrep($row['paymentTitle']);
-});
-$table->addColumn('paymentMethod', __('Mode'))->format(function ($row) {
-    static $once = false;
-    $prefix = '';
-    if (!$once) {
-        $prefix = '<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"/>';
-        $once = true;
-    }
+$deleteUrl = $session->get('absoluteURL') . '/modules/FinanceCustom/payments_deleteProcess.php';
+$returnUrl = $session->get('absoluteURL') . '/index.php?q=/modules/FinanceCustom/student_history.php'
+           . '&gibbonPersonIDStudent=' . $gibbonPersonIDStudent;
+
+$methodBadge = function (string $method): string {
     $icon  = '<span class="material-icons" style="font-size:14px;vertical-align:middle;margin-right:3px">%s</span>';
-    $badge = '<span style="display:inline-flex;align-items:center;background:%s;color:%s;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:bold">'.sprintf($icon,'%s').'%s</span>';
+    $tpl   = '<span style="display:inline-flex;align-items:center;background:%s;color:%s;'
+           . 'padding:2px 8px;border-radius:10px;font-size:12px;font-weight:bold">'
+           . $icon . '%s</span>';
     $map = [
-        'BANK'   => sprintf($badge, '#d4e6f1', '#1a5276', 'account_balance', 'Banque'),
-        'MOBILE' => sprintf($badge, '#d5f5e3', '#1e8449', 'smartphone',      'Mobile Banking'),
-        'CASH'   => sprintf($badge, '#fef9e7', '#b7950b', 'payments',        'Espèces'),
-        'OTHER'  => sprintf($badge, '#f2f3f4', '#555',    'more_horiz',      'Autre'),
+        'BANK'   => ['#d4e6f1', '#1a5276', 'account_balance', 'Banque'],
+        'MOBILE' => ['#d5f5e3', '#1e8449', 'smartphone',      'Mobile Banking'],
+        'CASH'   => ['#fef9e7', '#b7950b', 'payments',        'Espèces'],
+        'OTHER'  => ['#f2f3f4', '#555',    'more_horiz',      'Autre'],
     ];
-    $method = strtoupper($row['paymentMethod'] ?? 'CASH');
-    return $prefix.($map[$method] ?? htmlPrep($method));
-});
-$table->addColumn('amountPaid', __('Montant'))->format(function ($row) {
-    return "<div style='text-align:right'>".number_format($row['amountPaid'], 2, '.', ',')."</div>";
-});
-$table->addColumn('remaining', __('Restant'))->format(function ($row) use ($running) {
-    $id = intval($row['gibbonFinanceMgmtStudentPaymentID']);
-    return "<div style='text-align:right'>".(isset($running[$id]) ? number_format($running[$id], 2, '.', ',') : __('N/D'))."</div>";
-});
-$table->addColumn('receiptPrinted', __('Reçu'))->format(function ($row) use ($session) {
-    if ($row['receiptPrinted'] === 'Y') {
-        $receiptNumber = htmlPrep($row['receiptNumber'] ?? '');
-        $link = $session->get('absoluteURL').'/modules/FinanceCustom/receipt_print.php?gibbonFinanceMgmtStudentPaymentID='.$row['gibbonFinanceMgmtStudentPaymentID'];
-        return "<a href='".htmlPrep($link)."'>".__('Réimprimer')."</a><br/><span style='font-size: 85%; font-style: italic'>{$receiptNumber}</span>";
-    }
-    return __('Non généré');
-});
-$table->addColumn('createdBy', __('Saisi par'))->format(function ($row) {
-    return Format::name('', $row['createdByPreferredName'] ?? '', $row['createdBySurname'] ?? '', 'Staff', false, true);
-});
+    $m = strtoupper($method);
+    $c = $map[$m] ?? ['#f2f3f4', '#555', 'more_horiz', htmlspecialchars($method)];
+    return sprintf($tpl, $c[0], $c[1], $c[2], $c[3]);
+};
 
-// Colonne Action : bouton Supprimer
-$deleteBaseUrl = $session->get('absoluteURL') . '/modules/FinanceCustom/payments_deleteProcess.php';
-$returnUrl     = $session->get('absoluteURL') . '/index.php?q=/modules/FinanceCustom/student_history.php'
-               . '&gibbonPersonIDStudent=' . $gibbonPersonIDStudent;
+echo '<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"/>';
+echo "<table class='smallIntBorder' cellspacing='0' style='width:100%'>";
+echo "<tr class='head'>"
+    . "<th>".__('Date')."</th>"
+    . "<th>".__('Libellé')."</th>"
+    . "<th>".__('Mode')."</th>"
+    . "<th style='text-align:right'>".__('Montant')."</th>"
+    . "<th style='text-align:right'>".__('Restant')."</th>"
+    . "<th>".__('Reçu')."</th>"
+    . "<th>".__('Saisi par')."</th>"
+    . "<th style='text-align:center'>".__('Action')."</th>"
+    . "</tr>";
 
-$table->addColumn('actions', __('Action'))->format(function ($row) use ($deleteBaseUrl, $returnUrl) {
-    $id     = intval($row['gibbonFinanceMgmtStudentPaymentID']);
-    $date   = htmlspecialchars($row['paymentDate'] ?? '');
+foreach ($rows as $row) {
+    $pid    = intval($row['gibbonFinanceMgmtStudentPaymentID']);
     $amount = number_format(floatval($row['amountPaid']), 2, '.', ',');
-    $label  = htmlspecialchars($row['paymentTitle'] ?? '');
-    return '<button type="button"
-        class="fc-del-btn"
-        data-id="'.$id.'"
-        data-date="'.htmlspecialchars(date('d/m/Y', strtotime($date))).'"
-        data-amount="'.$amount.'"
-        data-label="'.$label.'"
-        style="background:none;border:none;cursor:pointer;padding:2px 6px;color:#c0392b;"
-        title="'.__('Supprimer ce paiement').'">
-        <span class="material-icons" style="font-size:18px;vertical-align:middle">delete</span>
-    </button>';
-});
+    $remain = isset($running[$pid]) ? number_format($running[$pid], 2, '.', ',') : __('N/D');
+    $dateF  = Format::date($row['paymentDate']);
+    $label  = htmlPrep($row['paymentTitle']);
+    $mode   = $methodBadge(strtoupper($row['paymentMethod'] ?? 'CASH'));
+    $saisie = Format::name('', $row['createdByPreferredName'] ?? '', $row['createdBySurname'] ?? '', 'Staff', false, true);
 
-echo $table->render($rows);
+    if ($row['receiptPrinted'] === 'Y') {
+        $rLink = $session->get('absoluteURL').'/modules/FinanceCustom/receipt_print.php?gibbonFinanceMgmtStudentPaymentID='.$pid;
+        $recu  = "<a href='".htmlspecialchars($rLink)."'>".__('Réimprimer')."</a>"
+               . "<br/><span style='font-size:85%;font-style:italic'>".htmlPrep($row['receiptNumber'] ?? '')."</span>";
+    } else {
+        $recu = __('Non généré');
+    }
+
+    $dateRaw = $row['paymentDate'] ?? '';
+    $dateFmt = $dateRaw ? date('d/m/Y', strtotime($dateRaw)) : '';
+
+    echo "<tr>";
+    echo "<td>".$dateF."</td>";
+    echo "<td>".$label."</td>";
+    echo "<td>".$mode."</td>";
+    echo "<td style='text-align:right'>".$amount."</td>";
+    echo "<td style='text-align:right'>".$remain."</td>";
+    echo "<td>".$recu."</td>";
+    echo "<td>".$saisie."</td>";
+    echo "<td style='text-align:center'>"
+        . "<button type='button' class='fc-del-btn'"
+        . " data-id='".$pid."'"
+        . " data-date='".htmlspecialchars($dateFmt)."'"
+        . " data-amount='".htmlspecialchars($amount)."'"
+        . " data-label='".htmlspecialchars($row['paymentTitle'] ?? '')."'"
+        . " style='background:none;border:none;cursor:pointer;padding:2px 6px;color:#c0392b;'"
+        . " title='".__('Supprimer ce paiement')."'>"
+        . "<span class='material-icons' style='font-size:20px;vertical-align:middle'>delete</span>"
+        . "</button>"
+        . "</td>";
+    echo "</tr>";
+}
+
+if (empty($rows)) {
+    echo "<tr><td colspan='8' style='text-align:center;color:#888;padding:12px'>".__('Aucun paiement enregistré.')."</td></tr>";
+}
+
+echo "</table>";
 
 // ── Modale de confirmation de suppression ─────────────────────────────────────
 $deleteUrl = $session->get('absoluteURL') . '/modules/FinanceCustom/payments_deleteProcess.php';
