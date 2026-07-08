@@ -25,7 +25,7 @@ $description = 'Gestion financière personnalisée : frais de scolarité, paieme
 $entryURL    = "index.php";   // The landing page for the unit, used in the main menu
 $type        = "Additional";  // Do not change.
 $category    = 'Finance';     // The main menu area to place the module in
-$version     = '1.3.00';      // Version number
+$version     = '1.4.00';      // Version number
 $author      = 'Custom Module'; // Your name
 $url         = '';            // Your URL
 

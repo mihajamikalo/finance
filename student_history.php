@@ -262,5 +262,88 @@ $table->addColumn('createdBy', __('Saisi par'))->format(function ($row) {
     return Format::name('', $row['createdByPreferredName'] ?? '', $row['createdBySurname'] ?? '', 'Staff', false, true);
 });
 
+// Colonne Action : bouton Supprimer
+$deleteBaseUrl = $session->get('absoluteURL') . '/modules/FinanceCustom/payments_deleteProcess.php';
+$returnUrl     = $session->get('absoluteURL') . '/index.php?q=/modules/FinanceCustom/student_history.php'
+               . '&gibbonPersonIDStudent=' . $gibbonPersonIDStudent;
+
+$table->addColumn('actions', __('Action'))->format(function ($row) use ($deleteBaseUrl, $returnUrl) {
+    $id     = intval($row['gibbonFinanceMgmtStudentPaymentID']);
+    $date   = htmlspecialchars($row['paymentDate'] ?? '');
+    $amount = number_format(floatval($row['amountPaid']), 2, '.', ',');
+    $label  = htmlspecialchars($row['paymentTitle'] ?? '');
+    return '<button type="button"
+        class="fc-del-btn"
+        data-id="'.$id.'"
+        data-date="'.htmlspecialchars(date('d/m/Y', strtotime($date))).'"
+        data-amount="'.$amount.'"
+        data-label="'.$label.'"
+        style="background:none;border:none;cursor:pointer;padding:2px 6px;color:#c0392b;"
+        title="'.__('Supprimer ce paiement').'">
+        <span class="material-icons" style="font-size:18px;vertical-align:middle">delete</span>
+    </button>';
+});
+
 echo $table->render($rows);
+
+// ── Modale de confirmation de suppression ─────────────────────────────────────
+$deleteUrl = $session->get('absoluteURL') . '/modules/FinanceCustom/payments_deleteProcess.php';
+echo '
+<div id="fcDelOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.25);width:420px;max-width:95vw;overflow:hidden;">
+    <div style="background:#c0392b;color:#fff;padding:14px 20px;font-size:16px;font-weight:bold;display:flex;align-items:center;gap:8px;">
+      <span class="material-icons" style="font-size:20px">warning</span>
+      '.__('Confirmer la suppression').'
+    </div>
+    <div style="padding:20px;">
+      <p style="margin:0 0 14px">'.__('Êtes-vous sûr de vouloir supprimer ce paiement ? Cette action est irréversible.').'</p>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <tr><td style="color:#666;padding:5px 6px;border-bottom:1px solid #eee;width:40%">'.__('Date').'</td>
+            <td id="fcDelDate" style="font-weight:bold;padding:5px 6px;border-bottom:1px solid #eee"></td></tr>
+        <tr><td style="color:#666;padding:5px 6px;border-bottom:1px solid #eee">'.__('Libellé').'</td>
+            <td id="fcDelLabel" style="font-weight:bold;padding:5px 6px;border-bottom:1px solid #eee"></td></tr>
+        <tr><td style="color:#666;padding:5px 6px">'.__('Montant').'</td>
+            <td id="fcDelAmount" style="font-weight:bold;font-size:18px;color:#c0392b;padding:5px 6px"></td></tr>
+      </table>
+    </div>
+    <div style="padding:14px 20px;background:#f8f8f8;display:flex;justify-content:flex-end;gap:10px;">
+      <button type="button" id="fcDelCancel"
+        style="padding:8px 18px;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;font-size:14px;">
+        <span class="material-icons" style="font-size:15px;vertical-align:middle;margin-right:3px">close</span>'.__('Annuler').'
+      </button>
+      <form id="fcDelForm" method="post" action="'.htmlspecialchars($deleteUrl).'" style="display:inline">
+        <input type="hidden" name="gibbonFinanceMgmtStudentPaymentID" id="fcDelPaymentID" value="">
+        <input type="hidden" name="returnTo" value="'.htmlspecialchars($returnUrl).'">
+        <button type="submit"
+          style="padding:8px 18px;border:none;border-radius:4px;background:#c0392b;color:#fff;cursor:pointer;font-size:14px;font-weight:bold;">
+          <span class="material-icons" style="font-size:15px;vertical-align:middle;margin-right:3px">delete</span>'.__('Supprimer').'
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+    var overlay = document.getElementById("fcDelOverlay");
+
+    document.addEventListener("click", function (e) {
+        var btn = e.target.closest(".fc-del-btn");
+        if (!btn) return;
+        document.getElementById("fcDelDate").textContent   = btn.dataset.date;
+        document.getElementById("fcDelLabel").textContent  = btn.dataset.label;
+        document.getElementById("fcDelAmount").textContent = btn.dataset.amount;
+        document.getElementById("fcDelPaymentID").value    = btn.dataset.id;
+        overlay.style.display = "flex";
+    });
+
+    document.getElementById("fcDelCancel").addEventListener("click", function () {
+        overlay.style.display = "none";
+    });
+
+    overlay.addEventListener("click", function (e) {
+        if (e.target === overlay) overlay.style.display = "none";
+    });
+})();
+</script>';
 
