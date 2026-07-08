@@ -147,20 +147,56 @@ $row->addContent('
 </button>
 ');
 
-// Capturer le HTML du formulaire et injecter id="fcPlanTr" style="display:none"
-// directement dans le <tr> contenant #paymentOption — avant tout rendu navigateur.
+// Capturer le HTML du formulaire, injecter id="fcPlanTr" dans le TR du plan.
 ob_start();
 echo $form->getOutput();
 $formHtml = ob_get_clean();
 
-// Regex : trouve le <tr> qui contient id="paymentOption" et lui ajoute l'attribut
-$formHtml = preg_replace(
-    '/(<tr)(\b[^>]*>(?:(?!<\/tr>)[\s\S])*?id="paymentOption"(?:(?!<\/tr>)[\s\S])*?<\/tr>)/i',
-    '$1 id="fcPlanTr" style="display:none"$2',
+// Approche 1 : chercher name="paymentOption" (plus fiable que id=)
+// et injecter id="fcPlanTr" sur le <tr> le plus proche.
+$formHtml = preg_replace_callback(
+    '/<tr(\b[^>]*)>((?:(?!<\/tr>)[\s\S])*?name=["\']paymentOption["\'](?:(?!<\/tr>)[\s\S])*?)<\/tr>/i',
+    function ($m) {
+        // Ne pas ajouter si l'id existe déjà
+        if (strpos($m[1], 'id=') === false) {
+            return '<tr id="fcPlanTr" style="display:none"' . $m[1] . '>' . $m[2] . '</tr>';
+        }
+        return str_replace('<tr' . $m[1] . '>', '<tr' . $m[1] . ' style="display:none">', $m[0]);
+    },
     $formHtml
 );
 
 echo $formHtml;
+
+// Approche 2 (CSS + JS synchrone) : filet de sécurité si le regex n'a pas matché.
+// Le JS remonte depuis #paymentOption jusqu'au TR parent (max 5 niveaux).
+echo '
+<style>
+/* Fallback CSS : si fcPlanTr existe, il est déjà caché via style inline.
+   Cette règle est un double filet de sécurité. */
+#fcPlanTr { display: none !important; }
+</style>
+<script>
+(function () {
+    // Si le regex PHP a réussi, #fcPlanTr existe déjà avec style="display:none".
+    // Sinon, on le trouve dynamiquement et on l\'identifie.
+    if (!document.getElementById("fcPlanTr")) {
+        var sel = document.getElementById("paymentOption");
+        if (sel) {
+            var node = sel.parentNode;
+            for (var i = 0; i < 5; i++) {
+                if (!node || node === document.body) break;
+                if (node.tagName && node.tagName.toUpperCase() === "TR") {
+                    node.id = "fcPlanTr";
+                    node.style.display = "none";
+                    break;
+                }
+                node = node.parentNode;
+            }
+        }
+    }
+})();
+</script>';
 
 // ── Logique AJAX : afficher/masquer le plan selon le statut de l'élève ────────
 $checkPlanUrl = $session->get('absoluteURL').'/modules/FinanceCustom/ajax_checkStudentPlan.php';

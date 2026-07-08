@@ -53,11 +53,15 @@ $planTypeLabels = [
     'LEGACY'        => 'Historique (sans plan)',
 ];
 
-if ($plan !== null) {
+// Un étudiant ayant déjà des paiements (même sans plan formel) ne doit plus
+// pouvoir choisir un plan — on considère que son parcours est déjà engagé.
+$hasExistingPlan = ($plan !== null) || ($paymentCount > 0);
+
+if ($hasExistingPlan) {
     echo json_encode([
         'hasExistingPlan' => true,
-        'planType'        => $plan['planType'],
-        'planLabel'       => $planTypeLabels[$plan['planType']] ?? $plan['planType'],
+        'planType'        => $plan['planType'] ?? 'LEGACY',
+        'planLabel'       => isset($plan['planType']) ? ($planTypeLabels[$plan['planType']] ?? $plan['planType']) : 'Historique',
         'paymentCount'    => $paymentCount,
     ]);
 } else {
