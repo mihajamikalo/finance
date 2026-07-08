@@ -147,35 +147,20 @@ $row->addContent('
 </button>
 ');
 
+// Capturer le HTML du formulaire et injecter id="fcPlanTr" style="display:none"
+// directement dans le <tr> contenant #paymentOption — avant tout rendu navigateur.
+ob_start();
 echo $form->getOutput();
+$formHtml = ob_get_clean();
 
-// ── Masquage immédiat de la ligne Plan (CSS + JS synchrone) ──────────────────
-echo '
-<style>
-/* CSS :has() — masque dès le premier rendu sans attendre JS (navigateurs modernes) */
-tr:has(#paymentOption)   { display: none !important; }
-/* Classe utilisée par JS pour forcer l\'affichage (override) */
-tr.fc-plan-show:has(#paymentOption) { display: table-row !important; }
-/* Fallback pour navigateurs sans :has() : JS ajoute data-fc-planrow="hidden" */
-[data-fc-planrow="hidden"] { display: none !important; }
-[data-fc-planrow="visible"] { display: table-row !important; }
-</style>
-<script>
-(function () {
-    /* Trouve le TR contenant #paymentOption — traverse le DOM vers le haut */
-    var sel = document.getElementById("paymentOption");
-    if (!sel) return;
-    var node = sel.parentNode;
-    while (node && node.tagName && node.tagName.toUpperCase() !== "BODY") {
-        if (node.tagName.toUpperCase() === "TR") {
-            node.setAttribute("data-fc-planrow", "hidden");
-            node.style.setProperty("display", "none", "important");
-            break;
-        }
-        node = node.parentNode;
-    }
-})();
-</script>';
+// Regex : trouve le <tr> qui contient id="paymentOption" et lui ajoute l'attribut
+$formHtml = preg_replace(
+    '/(<tr)(\b[^>]*>(?:(?!<\/tr>)[\s\S])*?id="paymentOption"(?:(?!<\/tr>)[\s\S])*?<\/tr>)/i',
+    '$1 id="fcPlanTr" style="display:none"$2',
+    $formHtml
+);
+
+echo $formHtml;
 
 // ── Logique AJAX : afficher/masquer le plan selon le statut de l'élève ────────
 $checkPlanUrl = $session->get('absoluteURL').'/modules/FinanceCustom/ajax_checkStudentPlan.php';
@@ -184,8 +169,8 @@ echo '
 (function () {
     var CHECK_URL = '.json_encode($checkPlanUrl).';
 
-    /* Récupère la référence au TR via l\'attribut posé par le script synchrone */
-    var planRow = document.querySelector("[data-fc-planrow]");
+    /* Le TR du plan a été identifié côté PHP et reçu avec style="display:none" */
+    var planRow = document.getElementById("fcPlanTr");
 
     /* Insérer un div de statut après la ligne Élève */
     var finderInput = document.getElementById("gibbonPersonIDStudent");
@@ -200,17 +185,14 @@ echo '
 
     function hidePlanRow() {
         if (!planRow) return;
-        planRow.setAttribute("data-fc-planrow", "hidden");
-        planRow.style.setProperty("display", "none", "important");
+        planRow.style.display = "none";
         var sel = document.getElementById("paymentOption");
         if (sel) { sel.required = false; sel.value = ""; }
     }
 
     function showPlanRow() {
         if (!planRow) return;
-        planRow.setAttribute("data-fc-planrow", "visible");
-        planRow.style.removeProperty("display");
-        planRow.style.setProperty("display", "table-row", "important");
+        planRow.style.display = "";
         var sel = document.getElementById("paymentOption");
         if (sel) sel.required = true;
     }
@@ -480,9 +462,9 @@ echo '
             return;
         }
 
-        // Vérifier si la ligne Plan est visible via l\'attribut data-fc-planrow
-        var planRowEl   = document.querySelector("[data-fc-planrow]");
-        var planVisible = planRowEl && planRowEl.getAttribute("data-fc-planrow") === "visible";
+        // Vérifier si la ligne Plan est visible
+        var planRowEl   = document.getElementById("fcPlanTr");
+        var planVisible = planRowEl && planRowEl.style.display !== "none";
 
         document.getElementById("fcAmountBig").textContent = formatAmount(amount);
         document.getElementById("fcSummaryTitle").textContent   = title || "—";
