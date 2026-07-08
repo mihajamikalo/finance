@@ -132,7 +132,7 @@ $row = $form->addRow();
         ->description(__('Obligatoire lors du premier paiement. Ignoré pour les paiements suivants.'));
     $row->addSelect('paymentOption')
         ->fromArray([
-            ''     => __('— choisir un plan (premier paiement uniquement) —'),
+            ''     => __('— choisir un plan —'),
             'FULL' => __('Paiement intégral avec remise de 10 %'),
             '4'    => __('4 mensualités'),
             '8'    => __('8 mensualités'),
@@ -148,6 +148,141 @@ $row->addContent('
 ');
 
 echo $form->getOutput();
+
+// ── Logique AJAX : afficher/masquer le plan selon le statut de l'élève ────────
+$checkPlanUrl = $session->get('absoluteURL').'/modules/FinanceCustom/ajax_checkStudentPlan.php';
+echo '
+<script>
+(function () {
+    var CHECK_URL = '.json_encode($checkPlanUrl).';
+
+    // ── Trouver les éléments clés ──────────────────────────────────────────
+    var planSelect  = document.getElementById("paymentOption");
+    var planRow     = planSelect ? planSelect.closest("tr") : null;
+
+    // Div de statut injecté sous la ligne Élève
+    var statusDiv = document.createElement("div");
+    statusDiv.id  = "fcPlanStatus";
+    statusDiv.style.cssText = "margin:-6px 0 8px 0; padding:0;";
+
+    // Insérer le statusDiv après la ligne de l\'élève (la ligne contenant #gibbonPersonIDStudent)
+    var finderInput = document.getElementById("gibbonPersonIDStudent");
+    var finderRow   = finderInput ? finderInput.closest("tr") : null;
+    if (finderRow && finderRow.parentNode) {
+        finderRow.parentNode.insertBefore(
+            Object.assign(document.createElement("tr"), {
+                innerHTML: "<td colspan=\"2\" style=\"padding:0;border:none\">" + "<div id=\"fcPlanStatus\" style=\"padding:4px 0 2px 0\"></div>" + "</td>"
+            }),
+            finderRow.nextSibling
+        );
+    }
+
+    // Masquer la ligne Plan au chargement (on ne sait pas encore si c\'est le 1er paiement)
+    if (planRow) planRow.style.display = "none";
+
+    // ── Fonction principale : vérifier le plan via AJAX ───────────────────
+    function checkPlan(studentId) {
+        var badge = document.getElementById("fcPlanStatus");
+
+        if (!studentId) {
+            if (badge) badge.innerHTML = "";
+            if (planRow) {
+                planRow.style.display = "none";
+                var sel = document.getElementById("paymentOption");
+                if (sel) sel.required = false;
+            }
+            return;
+        }
+
+        if (badge) {
+            badge.innerHTML = "<span style=\"color:#888;font-size:12px\">⏳ ".'.__('Vérification en cours...').'</span>";
+        }
+
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", CHECK_URL + "?gibbonPersonIDStudent=" + encodeURIComponent(studentId), true);
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState !== 4) return;
+            var badge = document.getElementById("fcPlanStatus");
+
+            if (xhr.status !== 200) {
+                if (badge) badge.innerHTML = "";
+                return;
+            }
+
+            var data;
+            try { data = JSON.parse(xhr.responseText); } catch (e) { return; }
+
+            if (data.error) {
+                if (badge) badge.innerHTML = "";
+                return;
+            }
+
+            if (data.hasExistingPlan) {
+                // Plan existant → cacher la ligne, afficher badge informatif
+                if (planRow) {
+                    planRow.style.display = "none";
+                    var sel = document.getElementById("paymentOption");
+                    if (sel) sel.required = false;
+                }
+                if (badge) {
+                    badge.innerHTML =
+                        "<span style=\"display:inline-flex;align-items:center;gap:5px;"
+                        + "background:#d5f5e3;color:#1e8449;padding:4px 10px;"
+                        + "border-radius:12px;font-size:12px;font-weight:bold\">"
+                        + "<span class=\"material-icons\" style=\"font-size:14px\">check_circle</span>"
+                        + "'.__('Plan actif').': " + (data.planLabel || data.planType)
+                        + " &mdash; '.__('paiement').' #" + (data.paymentCount + 1)
+                        + "</span>";
+                }
+            } else {
+                // Aucun plan → afficher la ligne, forcer le choix
+                if (planRow) {
+                    planRow.style.display = "";
+                    var sel = document.getElementById("paymentOption");
+                    if (sel) sel.required = true;
+                }
+                if (badge) {
+                    badge.innerHTML =
+                        "<span style=\"display:inline-flex;align-items:center;gap:5px;"
+                        + "background:#fef9e7;color:#b7950b;padding:4px 10px;"
+                        + "border-radius:12px;font-size:12px;font-weight:bold\">"
+                        + "<span class=\"material-icons\" style=\"font-size:14px\">info</span>"
+                        + "'.__('Premier paiement — sélectionnez un plan ci-dessous').'</span>";
+                }
+            }
+        };
+        xhr.send();
+    }
+
+    // ── Détecter la sélection dans le Finder Gibbon ───────────────────────
+    // Le Finder (tokenInput/Chosen) met à jour un <input hidden> ou <select hidden>.
+    // On surveille via MutationObserver + event "change" + polling.
+
+    var finderHidden = document.getElementById("gibbonPersonIDStudent");
+    var lastVal      = "";
+
+    function onFinderChange() {
+        var raw = finderHidden ? finderHidden.value.trim() : "";
+        var id  = raw ? parseInt(raw.split(",")[0], 10) : 0;
+        var key = String(id);
+        if (key === lastVal) return;
+        lastVal = key;
+        checkPlan(id > 0 ? id : 0);
+    }
+
+    if (finderHidden) {
+        finderHidden.addEventListener("change", onFinderChange);
+
+        // MutationObserver pour les cas où la valeur change sans déclencher "change"
+        var observer = new MutationObserver(onFinderChange);
+        observer.observe(finderHidden, { attributes: true, attributeFilter: ["value"] });
+
+        // Polling léger (500 ms) en complément car tokenInput ne déclenche pas toujours "change"
+        setInterval(onFinderChange, 500);
+    }
+})();
+</script>
+';
 
 // ── Modale de confirmation du montant ────────────────────────────────────────
 echo '
@@ -324,12 +459,24 @@ echo '
             return;
         }
 
+        // Afficher le plan seulement si la ligne est visible
+        var planRowEl  = document.getElementById("paymentOption")
+                           ? document.getElementById("paymentOption").closest("tr") : null;
+        var planVisible = planRowEl && planRowEl.style.display !== "none";
+
         document.getElementById("fcAmountBig").textContent = formatAmount(amount);
         document.getElementById("fcSummaryTitle").textContent   = title || "—";
         document.getElementById("fcSummaryDate").textContent    = dateVal || "—";
         document.getElementById("fcSummaryStudent").textContent = getFinderLabel("gibbonPersonIDStudent");
         document.getElementById("fcSummaryMethod").innerHTML  = methodLabels[methodVal] || methodVal || "—";
-        document.getElementById("fcSummaryPlan").textContent    = planLabels[planVal] || planVal || "—";
+
+        // Ligne plan dans la modale : afficher "—" si plan déjà existant
+        var planSummaryRow = document.getElementById("fcSummaryPlan")
+            ? document.getElementById("fcSummaryPlan").closest("tr") : null;
+        if (planSummaryRow) planSummaryRow.style.display = planVisible ? "" : "none";
+        document.getElementById("fcSummaryPlan").textContent = planVisible
+            ? (planLabels[planVal] || planVal || "—")
+            : "—";
 
         document.getElementById("fcModalOverlay").classList.add("fc-open");
     });
