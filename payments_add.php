@@ -149,16 +149,31 @@ $row->addContent('
 
 echo $form->getOutput();
 
-// ── Script synchrone : cacher la ligne Plan AVANT le premier rendu ────────────
-// Ce script s'exécute immédiatement (pas de DOMContentLoaded) car il est placé
-// après le HTML du formulaire. La ligne est donc cachée avant toute peinture.
+// ── Masquage immédiat de la ligne Plan (CSS + JS synchrone) ──────────────────
 echo '
-<style>.fc-plan-row-hidden { display:none !important; }</style>
+<style>
+/* CSS :has() — masque dès le premier rendu sans attendre JS (navigateurs modernes) */
+tr:has(#paymentOption)   { display: none !important; }
+/* Classe utilisée par JS pour forcer l\'affichage (override) */
+tr.fc-plan-show:has(#paymentOption) { display: table-row !important; }
+/* Fallback pour navigateurs sans :has() : JS ajoute data-fc-planrow="hidden" */
+[data-fc-planrow="hidden"] { display: none !important; }
+[data-fc-planrow="visible"] { display: table-row !important; }
+</style>
 <script>
 (function () {
+    /* Trouve le TR contenant #paymentOption — traverse le DOM vers le haut */
     var sel = document.getElementById("paymentOption");
-    var tr  = sel ? sel.closest("tr") : null;
-    if (tr) tr.classList.add("fc-plan-row-hidden");
+    if (!sel) return;
+    var node = sel.parentNode;
+    while (node && node.tagName && node.tagName.toUpperCase() !== "BODY") {
+        if (node.tagName.toUpperCase() === "TR") {
+            node.setAttribute("data-fc-planrow", "hidden");
+            node.style.setProperty("display", "none", "important");
+            break;
+        }
+        node = node.parentNode;
+    }
 })();
 </script>';
 
@@ -169,14 +184,10 @@ echo '
 (function () {
     var CHECK_URL = '.json_encode($checkPlanUrl).';
 
-    // La ligne Plan a été cachée par le script synchrone ci-dessus.
-    // On la retrouve via le select#paymentOption.
-    var planRow = (function() {
-        var sel = document.getElementById("paymentOption");
-        return sel ? sel.closest("tr") : null;
-    })();
+    /* Récupère la référence au TR via l\'attribut posé par le script synchrone */
+    var planRow = document.querySelector("[data-fc-planrow]");
 
-    // Insérer un div de statut après la ligne Élève
+    /* Insérer un div de statut après la ligne Élève */
     var finderInput = document.getElementById("gibbonPersonIDStudent");
     var finderRow   = finderInput ? finderInput.closest("tr") : null;
     if (finderRow && finderRow.parentNode) {
@@ -189,14 +200,17 @@ echo '
 
     function hidePlanRow() {
         if (!planRow) return;
-        planRow.classList.add("fc-plan-row-hidden");
+        planRow.setAttribute("data-fc-planrow", "hidden");
+        planRow.style.setProperty("display", "none", "important");
         var sel = document.getElementById("paymentOption");
         if (sel) { sel.required = false; sel.value = ""; }
     }
 
     function showPlanRow() {
         if (!planRow) return;
-        planRow.classList.remove("fc-plan-row-hidden");
+        planRow.setAttribute("data-fc-planrow", "visible");
+        planRow.style.removeProperty("display");
+        planRow.style.setProperty("display", "table-row", "important");
         var sel = document.getElementById("paymentOption");
         if (sel) sel.required = true;
     }
@@ -466,10 +480,9 @@ echo '
             return;
         }
 
-        // Afficher le plan seulement si la ligne est visible
-        var planRowEl  = document.getElementById("paymentOption")
-                           ? document.getElementById("paymentOption").closest("tr") : null;
-        var planVisible = planRowEl && planRowEl.style.display !== "none";
+        // Vérifier si la ligne Plan est visible via l\'attribut data-fc-planrow
+        var planRowEl   = document.querySelector("[data-fc-planrow]");
+        var planVisible = planRowEl && planRowEl.getAttribute("data-fc-planrow") === "visible";
 
         document.getElementById("fcAmountBig").textContent = formatAmount(amount);
         document.getElementById("fcSummaryTitle").textContent   = title || "—";
