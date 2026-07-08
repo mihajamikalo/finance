@@ -324,6 +324,7 @@ echo '
         <span class="material-icons" style="font-size:15px;vertical-align:middle;margin-right:3px">close</span>'.__('Annuler').'
       </button>
       <form id="fcDelForm" method="post" action="'.htmlspecialchars($deleteUrl).'" style="display:inline">
+        <input type="hidden" name="address" value="'.htmlspecialchars($session->get('address')).'">
         <input type="hidden" name="gibbonFinanceMgmtStudentPaymentID" id="fcDelPaymentID" value="">
         <input type="hidden" name="returnTo" value="'.htmlspecialchars($returnUrl).'">
         <button type="submit"
