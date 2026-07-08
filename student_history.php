@@ -298,8 +298,24 @@ if (empty($rows)) {
 
 echo "</table>";
 
+// ── Formulaires de suppression générés via Form::create() (tokens Gibbon inclus) ─
+$deleteProcessUrl = $session->get('absoluteURL') . '/modules/FinanceCustom/payments_deleteProcess.php';
+
+echo '<div id="fcHiddenForms" style="display:none">';
+foreach ($rows as $delRow) {
+    $pid = intval($delRow['gibbonFinanceMgmtStudentPaymentID']);
+    $delForm = Form::create('fcDelForm_'.$pid, $deleteProcessUrl);
+    $delForm->addHiddenValue('address', $session->get('address'));
+    $delForm->addHiddenValue('gibbonFinanceMgmtStudentPaymentID', $pid);
+    $delForm->addHiddenValue('returnTo', $returnUrl);
+    $row = $delForm->addRow();
+    $row->addSubmit(__('Supprimer'));
+    // Enveloppe pour cibler le formulaire par JS : id="fcForm_X"
+    echo '<span id="fcForm_'.$pid.'">'.$delForm->getOutput().'</span>';
+}
+echo '</div>';
+
 // ── Modale de confirmation de suppression ─────────────────────────────────────
-$deleteUrl = $session->get('absoluteURL') . '/modules/FinanceCustom/payments_deleteProcess.php';
 echo '
 <div id="fcDelOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.25);width:420px;max-width:95vw;overflow:hidden;">
@@ -323,39 +339,47 @@ echo '
         style="padding:8px 18px;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;font-size:14px;">
         <span class="material-icons" style="font-size:15px;vertical-align:middle;margin-right:3px">close</span>'.__('Annuler').'
       </button>
-      <form id="fcDelForm" method="post" action="'.htmlspecialchars($deleteUrl).'" style="display:inline">
-        <input type="hidden" name="address" value="'.htmlspecialchars($session->get('address')).'">
-        <input type="hidden" name="gibbonFinanceMgmtStudentPaymentID" id="fcDelPaymentID" value="">
-        <input type="hidden" name="returnTo" value="'.htmlspecialchars($returnUrl).'">
-        <button type="submit"
-          style="padding:8px 18px;border:none;border-radius:4px;background:#c0392b;color:#fff;cursor:pointer;font-size:14px;font-weight:bold;">
-          <span class="material-icons" style="font-size:15px;vertical-align:middle;margin-right:3px">delete</span>'.__('Supprimer').'
-        </button>
-      </form>
+      <button type="button" id="fcDelConfirm"
+        style="padding:8px 18px;border:none;border-radius:4px;background:#c0392b;color:#fff;cursor:pointer;font-size:14px;font-weight:bold;">
+        <span class="material-icons" style="font-size:15px;vertical-align:middle;margin-right:3px">delete</span>'.__('Supprimer').'
+      </button>
     </div>
   </div>
 </div>
 
 <script>
 (function () {
-    var overlay = document.getElementById("fcDelOverlay");
+    var overlay    = document.getElementById("fcDelOverlay");
+    var currentId  = null;
 
     document.addEventListener("click", function (e) {
         var btn = e.target.closest(".fc-del-btn");
         if (!btn) return;
+        currentId = btn.dataset.id;
         document.getElementById("fcDelDate").textContent   = btn.dataset.date;
         document.getElementById("fcDelLabel").textContent  = btn.dataset.label;
         document.getElementById("fcDelAmount").textContent = btn.dataset.amount;
-        document.getElementById("fcDelPaymentID").value    = btn.dataset.id;
         overlay.style.display = "flex";
+    });
+
+    document.getElementById("fcDelConfirm").addEventListener("click", function () {
+        if (!currentId) return;
+        // Soumettre le formulaire Gibbon pré-généré correspondant à ce paiement
+        var wrapper = document.getElementById("fcForm_" + currentId);
+        if (wrapper) {
+            var form = wrapper.querySelector("form");
+            if (form) { form.submit(); return; }
+        }
+        overlay.style.display = "none";
     });
 
     document.getElementById("fcDelCancel").addEventListener("click", function () {
         overlay.style.display = "none";
+        currentId = null;
     });
 
     overlay.addEventListener("click", function (e) {
-        if (e.target === overlay) overlay.style.display = "none";
+        if (e.target === overlay) { overlay.style.display = "none"; currentId = null; }
     });
 })();
 </script>';
