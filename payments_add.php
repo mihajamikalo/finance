@@ -128,15 +128,15 @@ document.querySelectorAll("#paymentMethodGroup .fc-method-btn").forEach(function
 ');
 
 $row = $form->addRow();
-    $row->addLabel('paymentOption', __('Plan de paiement'))
-        ->description(__('Obligatoire lors du premier paiement. Ignoré pour les paiements suivants.'));
-    $row->addSelect('paymentOption')
-        ->fromArray([
-            ''     => __('— choisir un plan —'),
-            'FULL' => __('Paiement intégral avec remise de 10 %'),
-            '4'    => __('4 mensualités'),
-            '8'    => __('8 mensualités'),
-        ]);
+$row->addLabel('paymentOption', __('Plan de paiement'))
+    ->description(__('Obligatoire lors du premier paiement. Ignoré pour les paiements suivants.'));
+$row->addSelect('paymentOption')
+    ->fromArray([
+        ''     => __('— choisir un plan —'),
+        'FULL' => __('Paiement intégral avec remise de 10 %'),
+        '4'    => __('4 mensualités'),
+        '8'    => __('8 mensualités'),
+    ]);
 
 // Bouton personnalisé qui déclenche la modale de confirmation
 $row = $form->addRow();
@@ -149,6 +149,19 @@ $row->addContent('
 
 echo $form->getOutput();
 
+// ── Script synchrone : cacher la ligne Plan AVANT le premier rendu ────────────
+// Ce script s'exécute immédiatement (pas de DOMContentLoaded) car il est placé
+// après le HTML du formulaire. La ligne est donc cachée avant toute peinture.
+echo '
+<style>.fc-plan-row-hidden { display:none !important; }</style>
+<script>
+(function () {
+    var sel = document.getElementById("paymentOption");
+    var tr  = sel ? sel.closest("tr") : null;
+    if (tr) tr.classList.add("fc-plan-row-hidden");
+})();
+</script>';
+
 // ── Logique AJAX : afficher/masquer le plan selon le statut de l'élève ────────
 $checkPlanUrl = $session->get('absoluteURL').'/modules/FinanceCustom/ajax_checkStudentPlan.php';
 echo '
@@ -156,29 +169,37 @@ echo '
 (function () {
     var CHECK_URL = '.json_encode($checkPlanUrl).';
 
-    // ── Trouver les éléments clés ──────────────────────────────────────────
-    var planSelect  = document.getElementById("paymentOption");
-    var planRow     = planSelect ? planSelect.closest("tr") : null;
+    // La ligne Plan a été cachée par le script synchrone ci-dessus.
+    // On la retrouve via le select#paymentOption.
+    var planRow = (function() {
+        var sel = document.getElementById("paymentOption");
+        return sel ? sel.closest("tr") : null;
+    })();
 
-    // Div de statut injecté sous la ligne Élève
-    var statusDiv = document.createElement("div");
-    statusDiv.id  = "fcPlanStatus";
-    statusDiv.style.cssText = "margin:-6px 0 8px 0; padding:0;";
-
-    // Insérer le statusDiv après la ligne de l\'élève (la ligne contenant #gibbonPersonIDStudent)
+    // Insérer un div de statut après la ligne Élève
     var finderInput = document.getElementById("gibbonPersonIDStudent");
     var finderRow   = finderInput ? finderInput.closest("tr") : null;
     if (finderRow && finderRow.parentNode) {
-        finderRow.parentNode.insertBefore(
-            Object.assign(document.createElement("tr"), {
-                innerHTML: "<td colspan=\"2\" style=\"padding:0;border:none\">" + "<div id=\"fcPlanStatus\" style=\"padding:4px 0 2px 0\"></div>" + "</td>"
-            }),
-            finderRow.nextSibling
-        );
+        var statusTr = document.createElement("tr");
+        statusTr.innerHTML = "<td colspan=\"2\" style=\"padding:2px 0 4px 0;border:none\">"
+            + "<div id=\"fcPlanStatus\"></div>"
+            + "</td>";
+        finderRow.parentNode.insertBefore(statusTr, finderRow.nextSibling);
     }
 
-    // Masquer la ligne Plan au chargement (on ne sait pas encore si c\'est le 1er paiement)
-    if (planRow) planRow.style.display = "none";
+    function hidePlanRow() {
+        if (!planRow) return;
+        planRow.classList.add("fc-plan-row-hidden");
+        var sel = document.getElementById("paymentOption");
+        if (sel) { sel.required = false; sel.value = ""; }
+    }
+
+    function showPlanRow() {
+        if (!planRow) return;
+        planRow.classList.remove("fc-plan-row-hidden");
+        var sel = document.getElementById("paymentOption");
+        if (sel) sel.required = true;
+    }
 
     // ── Fonction principale : vérifier le plan via AJAX ───────────────────
     function checkPlan(studentId) {
@@ -186,16 +207,12 @@ echo '
 
         if (!studentId) {
             if (badge) badge.innerHTML = "";
-            if (planRow) {
-                planRow.style.display = "none";
-                var sel = document.getElementById("paymentOption");
-                if (sel) sel.required = false;
-            }
+            hidePlanRow();
             return;
         }
 
         if (badge) {
-            badge.innerHTML = "<span style=\"color:#888;font-size:12px\">⏳ ".'.__('Vérification en cours...').'</span>";
+            badge.innerHTML = "<span style=\"color:#888;font-size:12px\">'.__('Vérification en cours...').'</span>";
         }
 
         var xhr = new XMLHttpRequest();
@@ -218,12 +235,7 @@ echo '
             }
 
             if (data.hasExistingPlan) {
-                // Plan existant → cacher la ligne, afficher badge informatif
-                if (planRow) {
-                    planRow.style.display = "none";
-                    var sel = document.getElementById("paymentOption");
-                    if (sel) sel.required = false;
-                }
+                hidePlanRow();
                 if (badge) {
                     badge.innerHTML =
                         "<span style=\"display:inline-flex;align-items:center;gap:5px;"
@@ -231,16 +243,11 @@ echo '
                         + "border-radius:12px;font-size:12px;font-weight:bold\">"
                         + "<span class=\"material-icons\" style=\"font-size:14px\">check_circle</span>"
                         + "'.__('Plan actif').': " + (data.planLabel || data.planType)
-                        + " &mdash; '.__('paiement').' #" + (data.paymentCount + 1)
+                        + " &mdash; '.__('paiement').' \u0023" + (data.paymentCount + 1)
                         + "</span>";
                 }
             } else {
-                // Aucun plan → afficher la ligne, forcer le choix
-                if (planRow) {
-                    planRow.style.display = "";
-                    var sel = document.getElementById("paymentOption");
-                    if (sel) sel.required = true;
-                }
+                showPlanRow();
                 if (badge) {
                     badge.innerHTML =
                         "<span style=\"display:inline-flex;align-items:center;gap:5px;"
