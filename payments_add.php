@@ -160,9 +160,9 @@ echo $form->getOutput();
 $formHtml = ob_get_clean();
 
 // Injecter id="fcPlanTr" sur le TR contenant paymentOption.
-// Section plan libre injectée juste après le TR du plan (hidden par défaut).
-$customPlanSection = '
-<tr id="fcCustomPlanTr" style="display:none">
+// Section plan libre – HTML interne (TD uniquement, réutilisé en PHP et en JS fallback).
+$depositFmt = number_format(financeMgmtGetConfiguredInitialDeposit(), 2, '.', ',');
+$customPlanInnerHtml = '
   <td colspan="2" style="padding:8px 0 4px 0">
     <div style="background:#f0f7ff;border:1px solid #aac8ea;border-radius:8px;padding:14px 16px;">
       <div style="font-weight:bold;color:#1a5276;margin-bottom:12px;display:flex;align-items:center;gap:6px;">
@@ -179,11 +179,11 @@ $customPlanSection = '
         Total versements libres :
         <strong id="fcCustomTotal" style="color:#1a5276">0,00</strong>
         &nbsp;&mdash;&nbsp;
-        Acompte : <strong style="color:#1e8449">'.number_format(financeMgmtGetConfiguredInitialDeposit(), 2, '.', ',').'</strong>
+        Acompte : <strong style="color:#1e8449">' . $depositFmt . '</strong>
       </div>
     </div>
-  </td>
-</tr>';
+  </td>';
+$customPlanSection = '<tr id="fcCustomPlanTr" style="display:none">' . $customPlanInnerHtml . '</tr>';
 
 $formHtml = preg_replace_callback(
     '/<tr(\b[^>]*)>((?:(?!<\/tr>)[\s\S])*?name=["\']paymentOption["\'](?:(?!<\/tr>)[\s\S])*?)<\/tr>/i',
@@ -281,8 +281,23 @@ echo '
         finderRow.parentNode.insertBefore(statusTr, finderRow.nextSibling);
     }
 
-    var firstInstRow   = document.getElementById("fcFirstInstTr");
-    var customPlanRow  = document.getElementById("fcCustomPlanTr");
+    var firstInstRow  = document.getElementById("fcFirstInstTr");
+    var customPlanRow = document.getElementById("fcCustomPlanTr");
+
+    /* ── Fallback : créer fcCustomPlanTr en JS si la regex PHP n'a pas matché ── */
+    if (!customPlanRow && planRow && planRow.parentNode) {
+        customPlanRow = document.createElement("tr");
+        customPlanRow.id = "fcCustomPlanTr";
+        customPlanRow.style.display = "none";
+        customPlanRow.innerHTML = '.json_encode($customPlanInnerHtml).';
+        planRow.parentNode.insertBefore(customPlanRow, planRow.nextSibling);
+        /* Rebrancher les listeners sur les inputs fraîchement créés */
+        var ccInp = document.getElementById("fcCustomCount");
+        if (ccInp) {
+            ccInp.addEventListener("change", buildCustomRows);
+            ccInp.addEventListener("input",  buildCustomRows);
+        }
+    }
 
     /* ── Gestion des sous-champs selon le plan choisi ────────────────────── */
     function onPlanChange() {
@@ -303,7 +318,7 @@ echo '
         if (customPlanRow) {
             if (val === "CUSTOM") {
                 customPlanRow.style.display = "table-row";
-                buildCustomRows(); // initialiser les lignes
+                buildCustomRows();
             } else {
                 customPlanRow.style.display = "none";
             }
@@ -370,9 +385,24 @@ echo '
         customCountInput.addEventListener("input", buildCustomRows);
     }
 
-    // Écouter les changements sur le select du plan
+    // Écouter les changements sur le select du plan (event + polling pour Gibbon).
     var planSel = document.getElementById("paymentOption");
-    if (planSel) planSel.addEventListener("change", onPlanChange);
+    if (planSel) {
+        planSel.addEventListener("change", onPlanChange);
+        planSel.addEventListener("input",  onPlanChange);
+    }
+
+    // Polling 200 ms : filet de sécurité si Gibbon avale les events natifs du select.
+    var _lastPlanVal = null;
+    setInterval(function () {
+        var s = document.getElementById("paymentOption");
+        if (!s) return;
+        if (!planRow || planRow.style.display === "none") return; // plan non affiché
+        if (s.value !== _lastPlanVal) {
+            _lastPlanVal = s.value;
+            onPlanChange();
+        }
+    }, 200);
 
     function hidePlanRow() {
         if (!planRow) return;
