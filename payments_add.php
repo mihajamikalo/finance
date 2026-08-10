@@ -127,24 +127,6 @@ document.querySelectorAll("#paymentMethodGroup .fc-method-btn").forEach(function
 </script>
 ');
 
-$row = $form->addRow();
-$row->addLabel('paymentOption', __('Plan de paiement'))
-    ->description(__('Obligatoire lors du premier paiement. Ignoré pour les paiements suivants.'));
-$row->addSelect('paymentOption')
-    ->fromArray([
-        ''       => __('— choisir un plan —'),
-        'FULL'   => __('Paiement intégral avec remise de 10 %'),
-        '4'      => __('4 mensualités'),
-        '8'      => __('8 mensualités'),
-        'CUSTOM' => __('Plan de paiement libre'),
-    ]);
-
-// Champ date du premier versement mensuel (visible uniquement pour 4 ou 8 mensualités).
-$row = $form->addRow();
-$row->addLabel('firstInstallmentDate', __('Date du 1er versement mensuel'))
-    ->description(__('Jour du mois choisi pour la 1re mensualité. Les suivantes tombent le même jour.'));
-$row->addDate('firstInstallmentDate');
-
 // Bouton personnalisé qui déclenche la modale de confirmation
 $row = $form->addRow();
 $row->addContent('
@@ -154,157 +136,102 @@ $row->addContent('
 </button>
 ');
 
-// Capturer le HTML du formulaire, injecter id="fcPlanTr" dans le TR du plan.
-ob_start();
+// ── Formulaire Gibbon (sans les champs dynamiques du plan) ──────────────────
 echo $form->getOutput();
-$formHtml = ob_get_clean();
 
-// Injecter id="fcPlanTr" sur le TR contenant paymentOption.
-// Section plan libre – HTML interne (TD uniquement, réutilisé en PHP et en JS fallback).
+// ── Section plan de paiement en HTML natif (IDs stables, sans regex PHP) ───
 $depositFmt = number_format(financeMgmtGetConfiguredInitialDeposit(), 2, '.', ',');
-$customPlanInnerHtml = '
-  <td colspan="2" style="padding:8px 0 4px 0">
-    <div style="background:#f0f7ff;border:1px solid #aac8ea;border-radius:8px;padding:14px 16px;">
-      <div style="font-weight:bold;color:#1a5276;margin-bottom:12px;display:flex;align-items:center;gap:6px;">
-        <span class="material-icons" style="font-size:18px;vertical-align:middle">event_note</span>
-        Plan de paiement libre
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-        <label style="font-size:13px;color:#555;min-width:220px">Nombre de versements après acompte :</label>
-        <input type="number" id="fcCustomCount" min="1" max="36" value="2"
-               style="width:70px;padding:5px 8px;border:1px solid #aac8ea;border-radius:4px;font-size:14px;">
-      </div>
-      <div id="fcCustomRows" style="display:flex;flex-direction:column;gap:6px;"></div>
-      <div style="margin-top:10px;padding-top:10px;border-top:1px solid #cce0f5;font-size:13px;color:#444;">
-        Total versements libres :
-        <strong id="fcCustomTotal" style="color:#1a5276">0,00</strong>
-        &nbsp;&mdash;&nbsp;
-        Acompte : <strong style="color:#1e8449">' . $depositFmt . '</strong>
-      </div>
-    </div>
-  </td>';
-$customPlanSection = '<tr id="fcCustomPlanTr" style="display:none">' . $customPlanInnerHtml . '</tr>';
-
-$formHtml = preg_replace_callback(
-    '/<tr(\b[^>]*)>((?:(?!<\/tr>)[\s\S])*?name=["\']paymentOption["\'](?:(?!<\/tr>)[\s\S])*?)<\/tr>/i',
-    function ($m) use ($customPlanSection) {
-        if (strpos($m[1], 'id=') === false) {
-            $planTr = '<tr id="fcPlanTr" style="display:none"' . $m[1] . '>' . $m[2] . '</tr>';
-        } else {
-            $planTr = str_replace('<tr' . $m[1] . '>', '<tr' . $m[1] . ' style="display:none">', $m[0]);
-        }
-        return $planTr . $customPlanSection;
-    },
-    $formHtml
-);
-
-// Injecter id="fcFirstInstTr" sur le TR contenant firstInstallmentDate (caché par défaut).
-$formHtml = preg_replace_callback(
-    '/<tr(\b[^>]*)>((?:(?!<\/tr>)[\s\S])*?name=["\']firstInstallmentDate["\'](?:(?!<\/tr>)[\s\S])*?)<\/tr>/i',
-    function ($m) {
-        if (strpos($m[1], 'id=') === false) {
-            return '<tr id="fcFirstInstTr" style="display:none"' . $m[1] . '>' . $m[2] . '</tr>';
-        }
-        return str_replace('<tr' . $m[1] . '>', '<tr' . $m[1] . ' style="display:none">', $m[0]);
-    },
-    $formHtml
-);
-
-echo $formHtml;
-
-// Approche 2 (CSS + JS synchrone) : filet de sécurité si le regex n'a pas matché.
-// Le JS remonte depuis #paymentOption jusqu'au TR parent (max 5 niveaux).
 echo '
-<style>
-#fcPlanTr       { display: none; }
-#fcFirstInstTr  { display: none; }
-#fcCustomPlanTr { display: none; }
-</style>
-<script>
-(function () {
-    // Fallback JS : si le regex PHP n\'a pas matché, on identifie les TR dynamiquement.
-    function findAndTagTr(fieldName, trId) {
-        if (document.getElementById(trId)) return;
-        var sel = document.querySelector("[name=\"" + fieldName + "\"]");
-        if (!sel) return;
-        var node = sel.parentNode;
-        for (var i = 0; i < 5; i++) {
-            if (!node || node === document.body) break;
-            if (node.tagName && node.tagName.toUpperCase() === "TR") {
-                node.id = trId;
-                node.style.display = "none";
-                break;
-            }
-            node = node.parentNode;
-        }
-    }
-    findAndTagTr("paymentOption", "fcPlanTr");
-    findAndTagTr("firstInstallmentDate", "fcFirstInstTr");
+<div id="fcPlanSection" style="display:none;margin:-4px 0 0 0;border-top:1px solid #e0e0e0;">
+  <table style="width:100%;border-collapse:collapse;">
 
-    // Ancienne logique de fallback conservée pour rétrocompatibilité.
-    if (!document.getElementById("fcPlanTr")) {
-        var sel = document.getElementById("paymentOption");
-        if (sel) {
-            var node = sel.parentNode;
-            for (var i = 0; i < 5; i++) {
-                if (!node || node === document.body) break;
-                if (node.tagName && node.tagName.toUpperCase() === "TR") {
-                    node.id = "fcPlanTr";
-                    node.style.display = "none";
-                    break;
-                }
-                node = node.parentNode;
-            }
-        }
-    }
-})();
-</script>';
+    <!-- Ligne : sélecteur de plan -->
+    <tr>
+      <td style="padding:10px 10px 10px 0;vertical-align:top;width:30%;font-weight:bold;font-size:13px;">
+        '.__('Plan de paiement').'
+        <div style="font-weight:normal;font-size:11px;color:#888;margin-top:3px;">'.__('Obligatoire lors du premier paiement. Ignoré pour les paiements suivants.').'</div>
+      </td>
+      <td style="padding:10px 0;vertical-align:middle;">
+        <select name="paymentOption" id="fcPaymentOption"
+                form="financePaymentAdd"
+                style="padding:7px 10px;border:1px solid #ccc;border-radius:4px;font-size:14px;min-width:260px;">
+          <option value="">— '.__('choisir un plan').' —</option>
+          <option value="FULL">'.__('Paiement intégral avec remise de 10 %').'</option>
+          <option value="4">'.__('4 mensualités').'</option>
+          <option value="8">'.__('8 mensualités').'</option>
+          <option value="CUSTOM">'.__('Plan de paiement libre').'</option>
+        </select>
+      </td>
+    </tr>
 
-// ── Logique AJAX : afficher/masquer le plan selon le statut de l'élève ────────
+    <!-- Ligne : date du 1er versement (4 ou 8 mensualités) -->
+    <tr id="fcFirstInstRow" style="display:none;">
+      <td style="padding:8px 10px 8px 0;vertical-align:top;font-weight:bold;font-size:13px;">
+        '.__('Date du 1er versement mensuel').'
+        <div style="font-weight:normal;font-size:11px;color:#888;margin-top:3px;">'.__('Jour du mois choisi pour la 1re mensualité. Les suivantes tombent le même jour.').'</div>
+      </td>
+      <td style="padding:8px 0;vertical-align:middle;">
+        <input type="date" name="firstInstallmentDate" id="firstInstallmentDate"
+               form="financePaymentAdd"
+               style="padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:14px;">
+      </td>
+    </tr>
+
+    <!-- Ligne : plan de paiement libre -->
+    <tr id="fcCustomRow" style="display:none;">
+      <td colspan="2" style="padding:8px 0 4px 0;">
+        <div style="background:#f0f7ff;border:1px solid #aac8ea;border-radius:8px;padding:14px 16px;">
+          <div style="font-weight:bold;color:#1a5276;margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+            <span class="material-icons" style="font-size:18px;vertical-align:middle">event_note</span>
+            '.__('Plan de paiement libre').'
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+            <label style="font-size:13px;color:#555;min-width:220px">'.__('Nombre de versements après acompte').' :</label>
+            <input type="number" id="fcCustomCount" min="1" max="36" value="2"
+                   style="width:70px;padding:5px 8px;border:1px solid #aac8ea;border-radius:4px;font-size:14px;">
+          </div>
+          <div id="fcCustomRows" style="display:flex;flex-direction:column;gap:6px;"></div>
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid #cce0f5;font-size:13px;color:#444;">
+            '.__('Total versements libres').' :
+            <strong id="fcCustomTotal" style="color:#1a5276">0,00</strong>
+            &nbsp;&mdash;&nbsp;
+            '.__('Acompte').' : <strong style="color:#1e8449">'.$depositFmt.'</strong>
+          </div>
+        </div>
+      </td>
+    </tr>
+
+  </table>
+</div>';
+
+// ── Logique AJAX + events plan de paiement ────────────────────────────────────
 $checkPlanUrl = $session->get('absoluteURL').'/modules/FinanceCustom/ajax_checkStudentPlan.php';
 echo '
 <script>
 (function () {
     var CHECK_URL = '.json_encode($checkPlanUrl).';
 
-    /* Le TR du plan a été identifié côté PHP et reçu avec style="display:none" */
-    var planRow = document.getElementById("fcPlanTr");
+    /* Références aux éléments (IDs stables définis dans notre HTML natif) */
+    var planSection  = document.getElementById("fcPlanSection");   // div conteneur du plan
+    var planSel      = document.getElementById("fcPaymentOption"); // <select>
+    var firstInstRow = document.getElementById("fcFirstInstRow");  // <tr> date 1er versement
+    var customRow    = document.getElementById("fcCustomRow");     // <tr> plan libre
 
-    /* Insérer un div de statut après la ligne Élève */
+    /* Badge de statut : inséré juste après la ligne Élève */
     var finderInput = document.getElementById("gibbonPersonIDStudent");
     var finderRow   = finderInput ? finderInput.closest("tr") : null;
     if (finderRow && finderRow.parentNode) {
         var statusTr = document.createElement("tr");
         statusTr.innerHTML = "<td colspan=\"2\" style=\"padding:2px 0 4px 0;border:none\">"
-            + "<div id=\"fcPlanStatus\"></div>"
-            + "</td>";
+            + "<div id=\"fcPlanStatus\"></div></td>";
         finderRow.parentNode.insertBefore(statusTr, finderRow.nextSibling);
     }
 
-    var firstInstRow  = document.getElementById("fcFirstInstTr");
-    var customPlanRow = document.getElementById("fcCustomPlanTr");
-
-    /* ── Fallback : creer fcCustomPlanTr si la regex PHP n\'a pas matche ── */
-    if (!customPlanRow && planRow && planRow.parentNode) {
-        customPlanRow = document.createElement("tr");
-        customPlanRow.id = "fcCustomPlanTr";
-        customPlanRow.style.display = "none";
-        customPlanRow.innerHTML = '.json_encode($customPlanInnerHtml).';
-        planRow.parentNode.insertBefore(customPlanRow, planRow.nextSibling);
-        /* Rebrancher les listeners sur les inputs fraîchement créés */
-        var ccInp = document.getElementById("fcCustomCount");
-        if (ccInp) {
-            ccInp.addEventListener("change", buildCustomRows);
-            ccInp.addEventListener("input",  buildCustomRows);
-        }
-    }
-
-    /* ── Gestion des sous-champs selon le plan choisi ────────────────────── */
+    /* ── Gestion des sous-champs en fonction du plan choisi ─────────────── */
     function onPlanChange() {
-        var sel = document.getElementById("paymentOption");
-        var val = sel ? sel.value : "";
+        var val = planSel ? planSel.value : "";
 
-        // Date premier versement mensuel : seulement pour 4 ou 8 mensualités
+        /* Date du 1er versement : seulement pour 4 ou 8 mensualités */
         if (firstInstRow) {
             firstInstRow.style.display = (val === "4" || val === "8") ? "table-row" : "none";
             if (val !== "4" && val !== "8") {
@@ -313,14 +240,15 @@ echo '
             }
         }
 
-        // Section plan libre
-        if (!customPlanRow) customPlanRow = document.getElementById("fcCustomPlanTr");
-        if (customPlanRow) {
+        /* Section plan libre */
+        if (customRow) {
             if (val === "CUSTOM") {
-                customPlanRow.style.display = "table-row";
+                customRow.style.display = "table-row";
                 buildCustomRows();
             } else {
-                customPlanRow.style.display = "none";
+                customRow.style.display = "none";
+                /* Désactiver le required sur les inputs cachés pour ne pas bloquer le submit */
+                customRow.querySelectorAll("input[required]").forEach(function(i){ i.required = false; });
             }
         }
     }
@@ -328,43 +256,36 @@ echo '
     /* ── Construction dynamique des lignes du plan libre ─────────────────── */
     function buildCustomRows() {
         var countInput = document.getElementById("fcCustomCount");
-        var count = parseInt(countInput ? countInput.value : 2) || 2;
-        count = Math.max(1, Math.min(36, count));
+        var count = Math.max(1, Math.min(36, parseInt(countInput ? countInput.value : 2) || 2));
 
         var container = document.getElementById("fcCustomRows");
         if (!container) return;
 
-        // Sauvegarder valeurs existantes
-        var savedDates   = [];
-        var savedAmounts = [];
+        var savedDates = [], savedAmounts = [];
         container.querySelectorAll(".fc-cust-row").forEach(function (r, i) {
-            var d = r.querySelector(".fc-cust-date");
-            var a = r.querySelector(".fc-cust-amount");
-            savedDates[i]   = d ? d.value : "";
-            savedAmounts[i] = a ? a.value : "";
+            var d = r.querySelector(".fc-cust-date"),  a = r.querySelector(".fc-cust-amount");
+            savedDates[i] = d ? d.value : "";  savedAmounts[i] = a ? a.value : "";
         });
 
         container.innerHTML = "";
         for (var i = 0; i < count; i++) {
-            var row = document.createElement("div");
-            row.className = "fc-cust-row";
-            row.style.cssText = "display:flex;align-items:center;flex-wrap:wrap;gap:8px;"
+            var div = document.createElement("div");
+            div.className = "fc-cust-row";
+            div.style.cssText = "display:flex;align-items:center;flex-wrap:wrap;gap:8px;"
                 + "padding:8px 10px;background:#fff;border:1px solid #cce0f5;border-radius:6px;";
-            row.innerHTML =
+            div.innerHTML =
                 "<span style=\"min-width:90px;font-weight:bold;font-size:13px;color:#1a5276\">Versement " + (i + 1) + "</span>"
                 + "<label style=\"font-size:12px;color:#666\">Date :</label>"
-                + "<input type=\"date\" name=\"customDates[]\" class=\"fc-cust-date\""
+                + "<input type=\"date\" name=\"customDates[]\" class=\"fc-cust-date\" form=\"financePaymentAdd\""
                 + " value=\"" + (savedDates[i] || "") + "\""
-                + " style=\"border:1px solid #aac8ea;border-radius:4px;padding:4px 8px;font-size:13px;\" required>"
+                + " style=\"border:1px solid #aac8ea;border-radius:4px;padding:4px 8px;font-size:13px;\">"
                 + "<label style=\"font-size:12px;color:#666;margin-left:6px\">Montant attendu :</label>"
-                + "<input type=\"number\" name=\"customAmounts[]\" class=\"fc-cust-amount\""
+                + "<input type=\"number\" name=\"customAmounts[]\" class=\"fc-cust-amount\" form=\"financePaymentAdd\""
                 + " value=\"" + (savedAmounts[i] || "") + "\""
                 + " min=\"0.01\" step=\"0.01\""
-                + " style=\"width:160px;border:1px solid #aac8ea;border-radius:4px;padding:4px 8px;font-size:13px;\" required>";
-            container.appendChild(row);
+                + " style=\"width:160px;border:1px solid #aac8ea;border-radius:4px;padding:4px 8px;font-size:13px;\">";
+            container.appendChild(div);
         }
-
-        // Mettre à jour le total quand les montants changent
         container.addEventListener("input", updateCustomTotal);
         updateCustomTotal();
     }
@@ -378,116 +299,77 @@ echo '
         if (el) el.textContent = total.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
-    // Réagir au changement de nombre de versements libres
-    var customCountInput = document.getElementById("fcCustomCount");
-    if (customCountInput) {
-        customCountInput.addEventListener("change", buildCustomRows);
-        customCountInput.addEventListener("input", buildCustomRows);
-    }
-
-    // Écouter les changements sur le select du plan (event + polling pour Gibbon).
-    var planSel = document.getElementById("paymentOption");
+    /* ── Event listeners sur le select du plan ─────────────────────────── */
     if (planSel) {
         planSel.addEventListener("change", onPlanChange);
         planSel.addEventListener("input",  onPlanChange);
     }
-
-    // Polling 200 ms : filet de sécurité si Gibbon avale les events natifs du select.
-    var _lastPlanVal = null;
-    setInterval(function () {
-        var s = document.getElementById("paymentOption");
-        if (!s) return;
-        if (!planRow || planRow.style.display === "none") return; // plan non affiché
-        if (s.value !== _lastPlanVal) {
-            _lastPlanVal = s.value;
-            onPlanChange();
-        }
-    }, 200);
-
-    function hidePlanRow() {
-        if (!planRow) return;
-        planRow.style.display = "none";
-        if (firstInstRow)  firstInstRow.style.display  = "none";
-        if (customPlanRow) customPlanRow.style.display = "none";
-        var sel = document.getElementById("paymentOption");
-        if (sel) { sel.required = false; sel.value = ""; }
+    var customCountInput = document.getElementById("fcCustomCount");
+    if (customCountInput) {
+        customCountInput.addEventListener("change", buildCustomRows);
+        customCountInput.addEventListener("input",  buildCustomRows);
     }
 
-    function showPlanRow() {
-        if (!planRow) return;
-        planRow.style.display = "table-row";
-        var sel = document.getElementById("paymentOption");
-        if (sel) sel.required = true;
-        // onPlanChange gère l\'affichage des sous-sections.
-        onPlanChange();
+    /* ── Afficher / masquer la section plan ─────────────────────────────── */
+    function hidePlanSection() {
+        if (planSection) planSection.style.display = "none";
+        if (firstInstRow) firstInstRow.style.display = "none";
+        if (customRow)    customRow.style.display    = "none";
+        if (planSel) { planSel.required = false; planSel.value = ""; }
+        onPlanChange(); /* nettoie les sous-sections */
     }
 
-    // ── Fonction principale : vérifier le plan via AJAX ───────────────────
+    function showPlanSection() {
+        if (planSection) planSection.style.display = "block";
+        if (planSel) planSel.required = true;
+        onPlanChange(); /* applique l\'état selon le plan déjà sélectionné */
+    }
+
+    /* ── Vérification AJAX du plan de l\'élève sélectionné ─────────────── */
     function checkPlan(studentId) {
         var badge = document.getElementById("fcPlanStatus");
-
         if (!studentId) {
             if (badge) badge.innerHTML = "";
-            hidePlanRow();
+            hidePlanSection();
             return;
         }
-
-        if (badge) {
-            badge.innerHTML = "<span style=\"color:#888;font-size:12px\">'.__('Vérification en cours...').'</span>";
-        }
+        if (badge) badge.innerHTML = "<span style=\"color:#888;font-size:12px\">'.__('Vérification en cours...').'</span>";
 
         var xhr = new XMLHttpRequest();
         xhr.open("GET", CHECK_URL + "?gibbonPersonIDStudent=" + encodeURIComponent(studentId), true);
         xhr.onreadystatechange = function () {
             if (xhr.readyState !== 4) return;
             var badge = document.getElementById("fcPlanStatus");
-
-            if (xhr.status !== 200) {
-                if (badge) badge.innerHTML = "";
-                return;
-            }
-
+            if (xhr.status !== 200) { if (badge) badge.innerHTML = ""; return; }
             var data;
             try { data = JSON.parse(xhr.responseText); } catch (e) { return; }
-
-            if (data.error) {
-                if (badge) badge.innerHTML = "";
-                return;
-            }
+            if (data.error) { if (badge) badge.innerHTML = ""; return; }
 
             if (data.hasExistingPlan) {
-                hidePlanRow();
-                if (badge) {
-                    badge.innerHTML =
-                        "<span style=\"display:inline-flex;align-items:center;gap:5px;"
-                        + "background:#d5f5e3;color:#1e8449;padding:4px 10px;"
-                        + "border-radius:12px;font-size:12px;font-weight:bold\">"
-                        + "<span class=\"material-icons\" style=\"font-size:14px\">check_circle</span>"
-                        + "'.__('Plan actif').': " + (data.planLabel || data.planType)
-                        + " &mdash; '.__('paiement').' \u0023" + (data.paymentCount + 1)
-                        + "</span>";
-                }
+                hidePlanSection();
+                if (badge) badge.innerHTML =
+                    "<span style=\"display:inline-flex;align-items:center;gap:5px;"
+                    + "background:#d5f5e3;color:#1e8449;padding:4px 10px;"
+                    + "border-radius:12px;font-size:12px;font-weight:bold\">"
+                    + "<span class=\"material-icons\" style=\"font-size:14px\">check_circle</span>"
+                    + "'.__('Plan actif').': " + (data.planLabel || data.planType)
+                    + " &mdash; '.__('paiement').' \u0023" + (data.paymentCount + 1) + "</span>";
             } else {
-                showPlanRow();
-                if (badge) {
-                    badge.innerHTML =
-                        "<span style=\"display:inline-flex;align-items:center;gap:5px;"
-                        + "background:#fef9e7;color:#b7950b;padding:4px 10px;"
-                        + "border-radius:12px;font-size:12px;font-weight:bold\">"
-                        + "<span class=\"material-icons\" style=\"font-size:14px\">info</span>"
-                        + "'.__('Premier paiement — sélectionnez un plan ci-dessous').'</span>";
-                }
+                showPlanSection();
+                if (badge) badge.innerHTML =
+                    "<span style=\"display:inline-flex;align-items:center;gap:5px;"
+                    + "background:#fef9e7;color:#b7950b;padding:4px 10px;"
+                    + "border-radius:12px;font-size:12px;font-weight:bold\">"
+                    + "<span class=\"material-icons\" style=\"font-size:14px\">info</span>"
+                    + "'.__('Premier paiement — sélectionnez un plan ci-dessous').'</span>";
             }
         };
         xhr.send();
     }
 
-    // ── Détecter la sélection dans le Finder Gibbon ───────────────────────
-    // Le Finder (tokenInput/Chosen) met à jour un <input hidden> ou <select hidden>.
-    // On surveille via MutationObserver + event "change" + polling.
-
+    /* ── Détection de l\'élève sélectionné (Finder Gibbon) ──────────────── */
     var finderHidden = document.getElementById("gibbonPersonIDStudent");
-    var lastVal      = "";
+    var lastVal = "";
 
     function onFinderChange() {
         var raw = finderHidden ? finderHidden.value.trim() : "";
@@ -500,12 +382,8 @@ echo '
 
     if (finderHidden) {
         finderHidden.addEventListener("change", onFinderChange);
-
-        // MutationObserver pour les cas où la valeur change sans déclencher "change"
         var observer = new MutationObserver(onFinderChange);
         observer.observe(finderHidden, { attributes: true, attributeFilter: ["value"] });
-
-        // Polling léger (500 ms) en complément car tokenInput ne déclenche pas toujours "change"
         setInterval(onFinderChange, 500);
     }
 })();
