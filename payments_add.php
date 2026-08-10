@@ -138,6 +138,12 @@ $row->addSelect('paymentOption')
         '8'    => __('8 mensualités'),
     ]);
 
+// Champ date du premier versement mensuel (visible uniquement pour 4 ou 8 mensualités).
+$row = $form->addRow();
+$row->addLabel('firstInstallmentDate', __('Date du 1er versement mensuel'))
+    ->description(__('Jour du mois choisi pour la 1re mensualité. Les suivantes tombent le même jour.'));
+$row->addDate('firstInstallmentDate');
+
 // Bouton personnalisé qui déclenche la modale de confirmation
 $row = $form->addRow();
 $row->addContent('
@@ -152,14 +158,24 @@ ob_start();
 echo $form->getOutput();
 $formHtml = ob_get_clean();
 
-// Approche 1 : chercher name="paymentOption" (plus fiable que id=)
-// et injecter id="fcPlanTr" sur le <tr> le plus proche.
+// Injecter id="fcPlanTr" sur le TR contenant paymentOption.
 $formHtml = preg_replace_callback(
     '/<tr(\b[^>]*)>((?:(?!<\/tr>)[\s\S])*?name=["\']paymentOption["\'](?:(?!<\/tr>)[\s\S])*?)<\/tr>/i',
     function ($m) {
-        // Ne pas ajouter si l'id existe déjà
         if (strpos($m[1], 'id=') === false) {
             return '<tr id="fcPlanTr" style="display:none"' . $m[1] . '>' . $m[2] . '</tr>';
+        }
+        return str_replace('<tr' . $m[1] . '>', '<tr' . $m[1] . ' style="display:none">', $m[0]);
+    },
+    $formHtml
+);
+
+// Injecter id="fcFirstInstTr" sur le TR contenant firstInstallmentDate (caché par défaut).
+$formHtml = preg_replace_callback(
+    '/<tr(\b[^>]*)>((?:(?!<\/tr>)[\s\S])*?name=["\']firstInstallmentDate["\'](?:(?!<\/tr>)[\s\S])*?)<\/tr>/i',
+    function ($m) {
+        if (strpos($m[1], 'id=') === false) {
+            return '<tr id="fcFirstInstTr" style="display:none"' . $m[1] . '>' . $m[2] . '</tr>';
         }
         return str_replace('<tr' . $m[1] . '>', '<tr' . $m[1] . ' style="display:none">', $m[0]);
     },
@@ -172,14 +188,31 @@ echo $formHtml;
 // Le JS remonte depuis #paymentOption jusqu'au TR parent (max 5 niveaux).
 echo '
 <style>
-/* Fallback CSS : si fcPlanTr existe, il est déjà caché via style inline.
-   Cette règle est un double filet de sécurité. */
-#fcPlanTr { display: none !important; }
+#fcPlanTr      { display: none !important; }
+#fcFirstInstTr { display: none !important; }
 </style>
 <script>
 (function () {
-    // Si le regex PHP a réussi, #fcPlanTr existe déjà avec style="display:none".
-    // Sinon, on le trouve dynamiquement et on l\'identifie.
+    // Fallback JS : si le regex PHP n\'a pas matché, on identifie les TR dynamiquement.
+    function findAndTagTr(fieldName, trId) {
+        if (document.getElementById(trId)) return;
+        var sel = document.querySelector("[name=\"" + fieldName + "\"]");
+        if (!sel) return;
+        var node = sel.parentNode;
+        for (var i = 0; i < 5; i++) {
+            if (!node || node === document.body) break;
+            if (node.tagName && node.tagName.toUpperCase() === "TR") {
+                node.id = trId;
+                node.style.display = "none";
+                break;
+            }
+            node = node.parentNode;
+        }
+    }
+    findAndTagTr("paymentOption", "fcPlanTr");
+    findAndTagTr("firstInstallmentDate", "fcFirstInstTr");
+
+    // Ancienne logique de fallback conservée pour rétrocompatibilité.
     if (!document.getElementById("fcPlanTr")) {
         var sel = document.getElementById("paymentOption");
         if (sel) {
@@ -219,9 +252,30 @@ echo '
         finderRow.parentNode.insertBefore(statusTr, finderRow.nextSibling);
     }
 
+    var firstInstRow = document.getElementById("fcFirstInstTr");
+
+    function updateFirstInstRow() {
+        if (!firstInstRow) return;
+        var sel = document.getElementById("paymentOption");
+        var val = sel ? sel.value : "";
+        // Montrer la date de premier versement seulement pour plans à mensualités.
+        if (val === "4" || val === "8") {
+            firstInstRow.style.display = "";
+        } else {
+            firstInstRow.style.display = "none";
+            var dateField = document.getElementById("firstInstallmentDate");
+            if (dateField) dateField.value = "";
+        }
+    }
+
+    // Écouter les changements sur le select du plan.
+    var planSel = document.getElementById("paymentOption");
+    if (planSel) planSel.addEventListener("change", updateFirstInstRow);
+
     function hidePlanRow() {
         if (!planRow) return;
         planRow.style.display = "none";
+        if (firstInstRow) firstInstRow.style.display = "none";
         var sel = document.getElementById("paymentOption");
         if (sel) { sel.required = false; sel.value = ""; }
     }
@@ -231,6 +285,7 @@ echo '
         planRow.style.display = "";
         var sel = document.getElementById("paymentOption");
         if (sel) sel.required = true;
+        // Ne pas afficher firstInstRow ici — c\'est le changement de plan qui décide.
     }
 
     // ── Fonction principale : vérifier le plan via AJAX ───────────────────

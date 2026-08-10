@@ -36,11 +36,12 @@ if (isActionAccessible($guid, $connection2, '/modules/FinanceCustom/payments_add
     exit;
 }
 
-$paymentTitle   = trim($_POST['paymentTitle'] ?? '');
-$studentToken   = trim($_POST['gibbonPersonIDStudent'] ?? '');
-$amountPaid     = floatval($_POST['amountPaid'] ?? 0);
-$paymentDate    = Format::dateConvert($_POST['paymentDate'] ?? '');
-$paymentOption  = trim($_POST['paymentOption'] ?? '');
+$paymentTitle          = trim($_POST['paymentTitle'] ?? '');
+$studentToken          = trim($_POST['gibbonPersonIDStudent'] ?? '');
+$amountPaid            = floatval($_POST['amountPaid'] ?? 0);
+$paymentDate           = Format::dateConvert($_POST['paymentDate'] ?? '');
+$paymentOption         = trim($_POST['paymentOption'] ?? '');
+$firstInstallmentDate  = Format::dateConvert($_POST['firstInstallmentDate'] ?? '');
 $validMethods   = ['BANK', 'MOBILE', 'CASH', 'OTHER'];
 $paymentMethod  = in_array(trim($_POST['paymentMethod'] ?? ''), $validMethods, true)
                     ? trim($_POST['paymentMethod'])
@@ -100,7 +101,8 @@ try {
             floatval($totals['totalFee']),
             $option,
             $paymentDate,
-            $gibbonPersonIDCreatedBy
+            $gibbonPersonIDCreatedBy,
+            $firstInstallmentDate
         );
         // Re-fetch plan so the effective fee (with discount) is used below.
         $existingPlan = financeMgmtGetStudentPaymentPlan($connection2, $gibbonPersonIDStudent, $gibbonSchoolYearID);

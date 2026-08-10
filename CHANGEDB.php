@@ -85,3 +85,9 @@ $sql[$count][0] = "1.3.00";
 $sql[$count][1] = "ALTER TABLE `gibbonFinanceMgmtStudentPayment`
   ADD COLUMN `paymentMethod` ENUM('BANK','MOBILE','CASH','OTHER') NOT NULL DEFAULT 'CASH'
   AFTER `paymentDate`;end";
+
+// v1.5.00 – Date du premier versement mensuel choisie par le parent
+$count++;
+$sql[$count][0] = "1.5.00";
+$sql[$count][1] = "ALTER TABLE `gibbonFinanceMgmtPaymentPlan`
+  ADD COLUMN `firstInstallmentDate` date DEFAULT NULL AFTER `planStartDate`;end";

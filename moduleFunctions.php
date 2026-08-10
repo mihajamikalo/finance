@@ -343,13 +343,25 @@ function financeMgmtBuildInstallmentSchedule(array $plan): array
         return $schedule;
     }
 
-    // Monthly instalments.
+    // Mensualités : partir de firstInstallmentDate si le parent a choisi une date précise,
+    // sinon fallback sur planStartDate + 1 mois.
+    $firstInstallmentDateRaw = trim($plan['firstInstallmentDate'] ?? '');
+    if ($firstInstallmentDateRaw !== '' && $firstInstallmentDateRaw !== '0000-00-00') {
+        $monthlyBase = new DateTimeImmutable($firstInstallmentDateRaw);
+        // Mensualité i=0 → firstInstallmentDate, i=1 → +1 mois, etc.
+        $monthOffset = 0;
+    } else {
+        // Comportement par défaut : premier versement mensuel = startDate + 1 mois.
+        $monthlyBase = $startDate;
+        $monthOffset = 1;
+    }
+
     $monthlyParts = financeMgmtSplitAmountEvenly($remaining, $installmentCount);
     foreach ($monthlyParts as $i => $monthAmount) {
         $schedule[] = [
             'installmentNumber' => $number++,
             'label'             => sprintf(__('Mensualité %1$s'), $i + 1),
-            'dueDate'           => $startDate->modify('+' . ($i + 1) . ' month')->format('Y-m-d'),
+            'dueDate'           => $monthlyBase->modify('+' . ($i + $monthOffset) . ' month')->format('Y-m-d'),
             'expectedAmount'    => $monthAmount,
         ];
     }
@@ -473,7 +485,8 @@ function financeMgmtCreateStudentPaymentPlan(
     float  $tuitionFeeAmount,
     string $paymentOption,
     string $planStartDate,
-    int    $gibbonPersonIDCreatedBy
+    int    $gibbonPersonIDCreatedBy,
+    string $firstInstallmentDate = ''
 ): int {
     $discountRate     = 0.0;
     $installmentCount = 0;
@@ -514,6 +527,15 @@ function financeMgmtCreateStudentPaymentPlan(
     $installmentAmount  = ($installmentCount > 0) ? round($remaining / $installmentCount, 2) : 0.0;
     $now                = date('Y-m-d H:i:s');
 
+    // Valider la date du premier versement mensuel (optionnelle, plans à mensualités uniquement).
+    $firstInstallmentDateValue = null;
+    if ($installmentCount > 0 && $firstInstallmentDate !== '') {
+        $parsed = date_create($firstInstallmentDate);
+        if ($parsed !== false) {
+            $firstInstallmentDateValue = $parsed->format('Y-m-d');
+        }
+    }
+
     $stmt = $connection2->prepare(
         "INSERT INTO gibbonFinanceMgmtPaymentPlan
          SET gibbonPersonIDStudent=:student,
@@ -528,26 +550,28 @@ function financeMgmtCreateStudentPaymentPlan(
              installmentCount=:instCount,
              installmentAmount=:instAmt,
              planStartDate=:startDate,
+             firstInstallmentDate=:firstInstDate,
              status='ACTIVE',
              gibbonPersonIDCreatedBy=:createdBy,
              createdAt=:now,
              updatedAt=:now"
     );
     $stmt->execute([
-        'student'   => $gibbonPersonIDStudent,
-        'year'      => $gibbonSchoolYearID,
-        'yg'        => $gibbonYearGroupID,
-        'planType'  => $planType,
-        'feeOrig'   => $tuitionFeeAmount,
-        'discRate'  => $discountRate,
-        'discAmt'   => $discountAmount,
-        'feeFinal'  => $tuitionFeeFinal,
-        'deposit'   => $requiredDeposit,
-        'instCount' => $installmentCount,
-        'instAmt'   => $installmentAmount,
-        'startDate' => $planStartDate,
-        'createdBy' => $gibbonPersonIDCreatedBy,
-        'now'       => $now,
+        'student'       => $gibbonPersonIDStudent,
+        'year'          => $gibbonSchoolYearID,
+        'yg'            => $gibbonYearGroupID,
+        'planType'      => $planType,
+        'feeOrig'       => $tuitionFeeAmount,
+        'discRate'      => $discountRate,
+        'discAmt'       => $discountAmount,
+        'feeFinal'      => $tuitionFeeFinal,
+        'deposit'       => $requiredDeposit,
+        'instCount'     => $installmentCount,
+        'instAmt'       => $installmentAmount,
+        'startDate'     => $planStartDate,
+        'firstInstDate' => $firstInstallmentDateValue,
+        'createdBy'     => $gibbonPersonIDCreatedBy,
+        'now'           => $now,
     ]);
 
     return intval($connection2->lastInsertId());
