@@ -142,19 +142,34 @@ echo $form->getOutput();
 // ── Section plan de paiement en HTML natif (IDs stables, sans regex PHP) ───
 $depositFmt = number_format(financeMgmtGetConfiguredInitialDeposit(), 2, '.', ',');
 echo '
-<div id="fcPlanSection" style="display:none;margin:-4px 0 0 0;border-top:1px solid #e0e0e0;">
+<div id="fcPlanSection" style="
+    display:none;
+    margin-top:16px;
+    background:#fff;
+    border:1px solid #dde3ea;
+    border-radius:8px;
+    padding:20px 24px 16px 24px;
+    box-shadow:0 1px 4px rgba(0,0,0,.06);
+">
+
+  <!-- En-tête de section -->
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #eef0f3;">
+    <span class="material-icons" style="font-size:20px;color:#1a7abf;vertical-align:middle">assignment</span>
+    <span style="font-size:15px;font-weight:700;color:#1a3c5e;">'.__('Plan de paiement').'</span>
+    <span style="font-size:12px;color:#999;margin-left:4px;font-style:italic;">'.__('Obligatoire lors du premier paiement').'</span>
+  </div>
+
   <table style="width:100%;border-collapse:collapse;">
 
     <!-- Ligne : sélecteur de plan -->
     <tr>
-      <td style="padding:10px 10px 10px 0;vertical-align:top;width:30%;font-weight:bold;font-size:13px;">
-        '.__('Plan de paiement').'
-        <div style="font-weight:normal;font-size:11px;color:#888;margin-top:3px;">'.__('Obligatoire lors du premier paiement. Ignoré pour les paiements suivants.').'</div>
+      <td style="padding:6px 16px 6px 0;vertical-align:middle;width:35%;font-size:13px;font-weight:600;color:#3d4852;">
+        '.__('Type de plan').'
       </td>
-      <td style="padding:10px 0;vertical-align:middle;">
+      <td style="padding:6px 0;vertical-align:middle;">
         <select name="paymentOption" id="fcPaymentOption"
                 form="financePaymentAdd"
-                style="padding:7px 10px;border:1px solid #ccc;border-radius:4px;font-size:14px;min-width:260px;">
+                style="padding:8px 12px;border:1px solid #ccd3db;border-radius:6px;font-size:14px;min-width:280px;background:#fff;color:#3d4852;cursor:pointer;">
           <option value="">— '.__('choisir un plan').' —</option>
           <option value="FULL">'.__('Paiement intégral avec remise de 10 %').'</option>
           <option value="4">'.__('4 mensualités').'</option>
@@ -166,36 +181,35 @@ echo '
 
     <!-- Ligne : date du 1er versement (4 ou 8 mensualités) -->
     <tr id="fcFirstInstRow" style="display:none;">
-      <td style="padding:8px 10px 8px 0;vertical-align:top;font-weight:bold;font-size:13px;">
-        '.__('Date du 1er versement mensuel').'
-        <div style="font-weight:normal;font-size:11px;color:#888;margin-top:3px;">'.__('Jour du mois choisi pour la 1re mensualité. Les suivantes tombent le même jour.').'</div>
+      <td style="padding:6px 16px 6px 0;vertical-align:top;font-size:13px;font-weight:600;color:#3d4852;">
+        '.__('Date du 1er versement').'
+        <div style="font-weight:400;font-size:11px;color:#999;margin-top:2px;">'.__('Les suivantes tombent le même jour du mois.').'</div>
       </td>
-      <td style="padding:8px 0;vertical-align:middle;">
+      <td style="padding:6px 0;vertical-align:middle;">
         <input type="date" name="firstInstallmentDate" id="firstInstallmentDate"
                form="financePaymentAdd"
-               style="padding:6px 10px;border:1px solid #ccc;border-radius:4px;font-size:14px;">
+               style="padding:7px 12px;border:1px solid #ccd3db;border-radius:6px;font-size:14px;background:#fff;">
       </td>
     </tr>
 
     <!-- Ligne : plan de paiement libre -->
     <tr id="fcCustomRow" style="display:none;">
-      <td colspan="2" style="padding:8px 0 4px 0;">
-        <div style="background:#f0f7ff;border:1px solid #aac8ea;border-radius:8px;padding:14px 16px;">
-          <div style="font-weight:bold;color:#1a5276;margin-bottom:12px;display:flex;align-items:center;gap:6px;">
-            <span class="material-icons" style="font-size:18px;vertical-align:middle">event_note</span>
-            '.__('Plan de paiement libre').'
+      <td colspan="2" style="padding:12px 0 4px 0;">
+        <div style="background:#f4f8fe;border:1px solid #b8d4ef;border-radius:8px;padding:16px 18px;">
+          <div style="font-weight:700;color:#1a5276;margin-bottom:14px;display:flex;align-items:center;gap:7px;font-size:14px;">
+            <span class="material-icons" style="font-size:19px;vertical-align:middle;color:#1a7abf">event_note</span>
+            '.__('Versements personnalisés').'
           </div>
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-            <label style="font-size:13px;color:#555;min-width:220px">'.__('Nombre de versements après acompte').' :</label>
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+            <label style="font-size:13px;color:#4a5568;min-width:230px;font-weight:500;">'.__('Nombre de versements après acompte').' :</label>
             <input type="number" id="fcCustomCount" min="1" max="36" value="2"
-                   style="width:70px;padding:5px 8px;border:1px solid #aac8ea;border-radius:4px;font-size:14px;">
+                   style="width:72px;padding:6px 10px;border:1px solid #b8d4ef;border-radius:6px;font-size:14px;background:#fff;">
           </div>
-          <div id="fcCustomRows" style="display:flex;flex-direction:column;gap:6px;"></div>
-          <div style="margin-top:10px;padding-top:10px;border-top:1px solid #cce0f5;font-size:13px;color:#444;">
-            '.__('Total versements libres').' :
-            <strong id="fcCustomTotal" style="color:#1a5276">0,00</strong>
-            &nbsp;&mdash;&nbsp;
-            '.__('Acompte').' : <strong style="color:#1e8449">'.$depositFmt.'</strong>
+          <div id="fcCustomRows" style="display:flex;flex-direction:column;gap:8px;"></div>
+          <div style="margin-top:12px;padding-top:12px;border-top:1px solid #cce0f5;font-size:13px;color:#555;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+            <span>'.__('Total versements').' : <strong id="fcCustomTotal" style="color:#1a5276;font-size:15px;">0,00</strong></span>
+            <span style="color:#bbb;">|</span>
+            <span>'.__('Acompte').' : <strong style="color:#1e8449;font-size:15px;">'.$depositFmt.'</strong></span>
           </div>
         </div>
       </td>
