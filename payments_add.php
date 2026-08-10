@@ -284,7 +284,7 @@ echo '
     var firstInstRow  = document.getElementById("fcFirstInstTr");
     var customPlanRow = document.getElementById("fcCustomPlanTr");
 
-    /* ── Fallback : créer fcCustomPlanTr en JS si la regex PHP n'a pas matché ── */
+    /* ── Fallback : creer fcCustomPlanTr si la regex PHP n\'a pas matche ── */
     if (!customPlanRow && planRow && planRow.parentNode) {
         customPlanRow = document.createElement("tr");
         customPlanRow.id = "fcCustomPlanTr";
