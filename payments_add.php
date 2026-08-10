@@ -132,10 +132,11 @@ $row->addLabel('paymentOption', __('Plan de paiement'))
     ->description(__('Obligatoire lors du premier paiement. Ignoré pour les paiements suivants.'));
 $row->addSelect('paymentOption')
     ->fromArray([
-        ''     => __('— choisir un plan —'),
-        'FULL' => __('Paiement intégral avec remise de 10 %'),
-        '4'    => __('4 mensualités'),
-        '8'    => __('8 mensualités'),
+        ''       => __('— choisir un plan —'),
+        'FULL'   => __('Paiement intégral avec remise de 10 %'),
+        '4'      => __('4 mensualités'),
+        '8'      => __('8 mensualités'),
+        'CUSTOM' => __('Plan de paiement libre'),
     ]);
 
 // Champ date du premier versement mensuel (visible uniquement pour 4 ou 8 mensualités).
@@ -159,13 +160,40 @@ echo $form->getOutput();
 $formHtml = ob_get_clean();
 
 // Injecter id="fcPlanTr" sur le TR contenant paymentOption.
+// Section plan libre injectée juste après le TR du plan (hidden par défaut).
+$customPlanSection = '
+<tr id="fcCustomPlanTr" style="display:none">
+  <td colspan="2" style="padding:8px 0 4px 0">
+    <div style="background:#f0f7ff;border:1px solid #aac8ea;border-radius:8px;padding:14px 16px;">
+      <div style="font-weight:bold;color:#1a5276;margin-bottom:12px;display:flex;align-items:center;gap:6px;">
+        <span class="material-icons" style="font-size:18px;vertical-align:middle">event_note</span>
+        Plan de paiement libre
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        <label style="font-size:13px;color:#555;min-width:220px">Nombre de versements après acompte :</label>
+        <input type="number" id="fcCustomCount" min="1" max="36" value="2"
+               style="width:70px;padding:5px 8px;border:1px solid #aac8ea;border-radius:4px;font-size:14px;">
+      </div>
+      <div id="fcCustomRows" style="display:flex;flex-direction:column;gap:6px;"></div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid #cce0f5;font-size:13px;color:#444;">
+        Total versements libres :
+        <strong id="fcCustomTotal" style="color:#1a5276">0,00</strong>
+        &nbsp;&mdash;&nbsp;
+        Acompte : <strong style="color:#1e8449">'.number_format(financeMgmtGetConfiguredInitialDeposit(), 2, '.', ',').'</strong>
+      </div>
+    </div>
+  </td>
+</tr>';
+
 $formHtml = preg_replace_callback(
     '/<tr(\b[^>]*)>((?:(?!<\/tr>)[\s\S])*?name=["\']paymentOption["\'](?:(?!<\/tr>)[\s\S])*?)<\/tr>/i',
-    function ($m) {
+    function ($m) use ($customPlanSection) {
         if (strpos($m[1], 'id=') === false) {
-            return '<tr id="fcPlanTr" style="display:none"' . $m[1] . '>' . $m[2] . '</tr>';
+            $planTr = '<tr id="fcPlanTr" style="display:none"' . $m[1] . '>' . $m[2] . '</tr>';
+        } else {
+            $planTr = str_replace('<tr' . $m[1] . '>', '<tr' . $m[1] . ' style="display:none">', $m[0]);
         }
-        return str_replace('<tr' . $m[1] . '>', '<tr' . $m[1] . ' style="display:none">', $m[0]);
+        return $planTr . $customPlanSection;
     },
     $formHtml
 );
@@ -190,6 +218,7 @@ echo '
 <style>
 #fcPlanTr      { display: none !important; }
 #fcFirstInstTr { display: none !important; }
+#fcCustomPlanTr { display: none !important; }
 </style>
 <script>
 (function () {
@@ -252,30 +281,103 @@ echo '
         finderRow.parentNode.insertBefore(statusTr, finderRow.nextSibling);
     }
 
-    var firstInstRow = document.getElementById("fcFirstInstTr");
+    var firstInstRow   = document.getElementById("fcFirstInstTr");
+    var customPlanRow  = document.getElementById("fcCustomPlanTr");
 
-    function updateFirstInstRow() {
-        if (!firstInstRow) return;
+    /* ── Gestion des sous-champs selon le plan choisi ────────────────────── */
+    function onPlanChange() {
         var sel = document.getElementById("paymentOption");
         var val = sel ? sel.value : "";
-        // Montrer la date de premier versement seulement pour plans à mensualités.
-        if (val === "4" || val === "8") {
-            firstInstRow.style.display = "";
-        } else {
-            firstInstRow.style.display = "none";
-            var dateField = document.getElementById("firstInstallmentDate");
-            if (dateField) dateField.value = "";
+
+        // Date premier versement mensuel : seulement pour 4 ou 8 mensualités
+        if (firstInstRow) {
+            firstInstRow.style.display = (val === "4" || val === "8") ? "" : "none";
+            if (val !== "4" && val !== "8") {
+                var df = document.getElementById("firstInstallmentDate");
+                if (df) df.value = "";
+            }
+        }
+
+        // Section plan libre
+        if (customPlanRow) {
+            if (val === "CUSTOM") {
+                customPlanRow.style.display = "";
+                buildCustomRows(); // initialiser les lignes
+            } else {
+                customPlanRow.style.display = "none";
+            }
         }
     }
 
-    // Écouter les changements sur le select du plan.
+    /* ── Construction dynamique des lignes du plan libre ─────────────────── */
+    function buildCustomRows() {
+        var countInput = document.getElementById("fcCustomCount");
+        var count = parseInt(countInput ? countInput.value : 2) || 2;
+        count = Math.max(1, Math.min(36, count));
+
+        var container = document.getElementById("fcCustomRows");
+        if (!container) return;
+
+        // Sauvegarder valeurs existantes
+        var savedDates   = [];
+        var savedAmounts = [];
+        container.querySelectorAll(".fc-cust-row").forEach(function (r, i) {
+            var d = r.querySelector(".fc-cust-date");
+            var a = r.querySelector(".fc-cust-amount");
+            savedDates[i]   = d ? d.value : "";
+            savedAmounts[i] = a ? a.value : "";
+        });
+
+        container.innerHTML = "";
+        for (var i = 0; i < count; i++) {
+            var row = document.createElement("div");
+            row.className = "fc-cust-row";
+            row.style.cssText = "display:flex;align-items:center;flex-wrap:wrap;gap:8px;"
+                + "padding:8px 10px;background:#fff;border:1px solid #cce0f5;border-radius:6px;";
+            row.innerHTML =
+                "<span style=\"min-width:90px;font-weight:bold;font-size:13px;color:#1a5276\">Versement " + (i + 1) + "</span>"
+                + "<label style=\"font-size:12px;color:#666\">Date :</label>"
+                + "<input type=\"date\" name=\"customDates[]\" class=\"fc-cust-date\""
+                + " value=\"" + (savedDates[i] || "") + "\""
+                + " style=\"border:1px solid #aac8ea;border-radius:4px;padding:4px 8px;font-size:13px;\" required>"
+                + "<label style=\"font-size:12px;color:#666;margin-left:6px\">Montant attendu :</label>"
+                + "<input type=\"number\" name=\"customAmounts[]\" class=\"fc-cust-amount\""
+                + " value=\"" + (savedAmounts[i] || "") + "\""
+                + " min=\"0.01\" step=\"0.01\""
+                + " style=\"width:160px;border:1px solid #aac8ea;border-radius:4px;padding:4px 8px;font-size:13px;\" required>";
+            container.appendChild(row);
+        }
+
+        // Mettre à jour le total quand les montants changent
+        container.addEventListener("input", updateCustomTotal);
+        updateCustomTotal();
+    }
+
+    function updateCustomTotal() {
+        var total = 0;
+        document.querySelectorAll(".fc-cust-amount").forEach(function (inp) {
+            total += parseFloat(inp.value) || 0;
+        });
+        var el = document.getElementById("fcCustomTotal");
+        if (el) el.textContent = total.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    // Réagir au changement de nombre de versements libres
+    var customCountInput = document.getElementById("fcCustomCount");
+    if (customCountInput) {
+        customCountInput.addEventListener("change", buildCustomRows);
+        customCountInput.addEventListener("input", buildCustomRows);
+    }
+
+    // Écouter les changements sur le select du plan
     var planSel = document.getElementById("paymentOption");
-    if (planSel) planSel.addEventListener("change", updateFirstInstRow);
+    if (planSel) planSel.addEventListener("change", onPlanChange);
 
     function hidePlanRow() {
         if (!planRow) return;
         planRow.style.display = "none";
-        if (firstInstRow) firstInstRow.style.display = "none";
+        if (firstInstRow)  firstInstRow.style.display  = "none";
+        if (customPlanRow) customPlanRow.style.display = "none";
         var sel = document.getElementById("paymentOption");
         if (sel) { sel.required = false; sel.value = ""; }
     }
@@ -285,7 +387,8 @@ echo '
         planRow.style.display = "";
         var sel = document.getElementById("paymentOption");
         if (sel) sel.required = true;
-        // Ne pas afficher firstInstRow ici — c\'est le changement de plan qui décide.
+        // onPlanChange gère l\'affichage des sous-sections.
+        onPlanChange();
     }
 
     // ── Fonction principale : vérifier le plan via AJAX ───────────────────

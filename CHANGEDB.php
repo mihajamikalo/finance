@@ -91,3 +91,9 @@ $count++;
 $sql[$count][0] = "1.5.00";
 $sql[$count][1] = "ALTER TABLE `gibbonFinanceMgmtPaymentPlan`
   ADD COLUMN `firstInstallmentDate` date DEFAULT NULL AFTER `planStartDate`;end";
+
+// v1.6.00 – Plan de paiement libre (dates et montants personnalisés)
+$count++;
+$sql[$count][0] = "1.6.00";
+$sql[$count][1] = "ALTER TABLE `gibbonFinanceMgmtPaymentPlan`
+  ADD COLUMN `customSchedule` TEXT DEFAULT NULL AFTER `firstInstallmentDate`;end";

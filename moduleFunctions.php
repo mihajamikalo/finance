@@ -303,11 +303,12 @@ function financeMgmtBuildInstallmentSchedule(array $plan): array
     $tuitionFinal     = floatval($plan['tuitionFeeFinal']);
     $requiredDeposit  = max(0.0, floatval($plan['requiredDeposit']));
     $installmentCount = max(0, intval($plan['installmentCount']));
+    $planType         = $plan['planType'] ?? 'LEGACY';
 
     $schedule = [];
     $number   = 1;
 
-    // Deposit instalment (only when a non-zero deposit is configured).
+    // Acompte initial (présent pour tous les plans sauf FULL sans dépôt séparé).
     if ($requiredDeposit > 0.009) {
         $schedule[] = [
             'installmentNumber' => $number++,
@@ -315,6 +316,27 @@ function financeMgmtBuildInstallmentSchedule(array $plan): array
             'dueDate'           => $startDate->format('Y-m-d'),
             'expectedAmount'    => min($requiredDeposit, $tuitionFinal),
         ];
+    }
+
+    // Plan libre : versements définis manuellement par le gestionnaire.
+    if ($planType === 'CUSTOM') {
+        $customItems = [];
+        $rawJson = $plan['customSchedule'] ?? '';
+        if ($rawJson !== '' && $rawJson !== null) {
+            $decoded = json_decode($rawJson, true);
+            if (is_array($decoded)) {
+                $customItems = $decoded;
+            }
+        }
+        foreach ($customItems as $i => $item) {
+            $schedule[] = [
+                'installmentNumber' => $number++,
+                'label'             => $item['label'] ?? sprintf(__('Versement %1$s'), $i + 1),
+                'dueDate'           => $item['dueDate'] ?? $startDate->format('Y-m-d'),
+                'expectedAmount'    => floatval($item['expectedAmount'] ?? 0),
+            ];
+        }
+        return $schedule;
     }
 
     $remaining = max(0.0, $tuitionFinal - $requiredDeposit);
@@ -486,7 +508,8 @@ function financeMgmtCreateStudentPaymentPlan(
     string $paymentOption,
     string $planStartDate,
     int    $gibbonPersonIDCreatedBy,
-    string $firstInstallmentDate = ''
+    string $firstInstallmentDate = '',
+    string $customScheduleJson   = ''
 ): int {
     $discountRate     = 0.0;
     $installmentCount = 0;
@@ -506,6 +529,13 @@ function financeMgmtCreateStudentPaymentPlan(
             $installmentCount = 8;
             $requiredDeposit  = financeMgmtGetConfiguredInitialDeposit();
             $planType         = 'INSTALLMENT_8';
+            break;
+        case 'CUSTOM':
+            $requiredDeposit  = financeMgmtGetConfiguredInitialDeposit();
+            $planType         = 'CUSTOM';
+            // installmentCount = nombre de versements libres
+            $decoded = json_decode($customScheduleJson, true);
+            $installmentCount = is_array($decoded) ? count($decoded) : 0;
             break;
         default:
             $planType = 'LEGACY';
@@ -529,12 +559,15 @@ function financeMgmtCreateStudentPaymentPlan(
 
     // Valider la date du premier versement mensuel (optionnelle, plans à mensualités uniquement).
     $firstInstallmentDateValue = null;
-    if ($installmentCount > 0 && $firstInstallmentDate !== '') {
+    if (in_array($planType, ['INSTALLMENT_4', 'INSTALLMENT_8'], true) && $firstInstallmentDate !== '') {
         $parsed = date_create($firstInstallmentDate);
         if ($parsed !== false) {
             $firstInstallmentDateValue = $parsed->format('Y-m-d');
         }
     }
+
+    // Stocker le calendrier personnalisé pour les plans CUSTOM.
+    $customScheduleValue = ($planType === 'CUSTOM' && $customScheduleJson !== '') ? $customScheduleJson : null;
 
     $stmt = $connection2->prepare(
         "INSERT INTO gibbonFinanceMgmtPaymentPlan
@@ -551,27 +584,29 @@ function financeMgmtCreateStudentPaymentPlan(
              installmentAmount=:instAmt,
              planStartDate=:startDate,
              firstInstallmentDate=:firstInstDate,
+             customSchedule=:customSchedule,
              status='ACTIVE',
              gibbonPersonIDCreatedBy=:createdBy,
              createdAt=:now,
              updatedAt=:now"
     );
     $stmt->execute([
-        'student'       => $gibbonPersonIDStudent,
-        'year'          => $gibbonSchoolYearID,
-        'yg'            => $gibbonYearGroupID,
-        'planType'      => $planType,
-        'feeOrig'       => $tuitionFeeAmount,
-        'discRate'      => $discountRate,
-        'discAmt'       => $discountAmount,
-        'feeFinal'      => $tuitionFeeFinal,
-        'deposit'       => $requiredDeposit,
-        'instCount'     => $installmentCount,
-        'instAmt'       => $installmentAmount,
-        'startDate'     => $planStartDate,
-        'firstInstDate' => $firstInstallmentDateValue,
-        'createdBy'     => $gibbonPersonIDCreatedBy,
-        'now'           => $now,
+        'student'        => $gibbonPersonIDStudent,
+        'year'           => $gibbonSchoolYearID,
+        'yg'             => $gibbonYearGroupID,
+        'planType'       => $planType,
+        'feeOrig'        => $tuitionFeeAmount,
+        'discRate'       => $discountRate,
+        'discAmt'        => $discountAmount,
+        'feeFinal'       => $tuitionFeeFinal,
+        'deposit'        => $requiredDeposit,
+        'instCount'      => $installmentCount,
+        'instAmt'        => $installmentAmount,
+        'startDate'      => $planStartDate,
+        'firstInstDate'  => $firstInstallmentDateValue,
+        'customSchedule' => $customScheduleValue,
+        'createdBy'      => $gibbonPersonIDCreatedBy,
+        'now'            => $now,
     ]);
 
     return intval($connection2->lastInsertId());

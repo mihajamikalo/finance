@@ -42,6 +42,8 @@ $amountPaid            = floatval($_POST['amountPaid'] ?? 0);
 $paymentDate           = Format::dateConvert($_POST['paymentDate'] ?? '');
 $paymentOption         = trim($_POST['paymentOption'] ?? '');
 $firstInstallmentDate  = Format::dateConvert($_POST['firstInstallmentDate'] ?? '');
+$customDates           = $_POST['customDates']   ?? [];
+$customAmounts         = $_POST['customAmounts'] ?? [];
 $validMethods   = ['BANK', 'MOBILE', 'CASH', 'OTHER'];
 $paymentMethod  = in_array(trim($_POST['paymentMethod'] ?? ''), $validMethods, true)
                     ? trim($_POST['paymentMethod'])
@@ -79,12 +81,40 @@ $existingPlan  = financeMgmtGetStudentPaymentPlan($connection2, $gibbonPersonIDS
 $paymentCount  = financeMgmtCountStudentPayments($connection2, $gibbonPersonIDStudent, $gibbonSchoolYearID);
 $isFirstPayment = ($existingPlan === null && $paymentCount === 0);
 
-// On the very first payment a valid plan option is mandatory.
-$validOptions = ['FULL', '4', '8'];
+// Premier paiement : un plan valide est obligatoire.
+$validOptions = ['FULL', '4', '8', 'CUSTOM'];
 if ($isFirstPayment && !in_array($paymentOption, $validOptions, true)) {
     $URL .= '&return=error3';
     header("Location: {$URL}");
     exit;
+}
+
+// Pour un plan libre, valider et construire le JSON du calendrier.
+$customScheduleJson = '';
+if ($paymentOption === 'CUSTOM') {
+    if (empty($customDates) || count($customDates) !== count($customAmounts)) {
+        $URL .= '&return=error3';
+        header("Location: {$URL}");
+        exit;
+    }
+    $customSchedule = [];
+    foreach ($customDates as $i => $rawDate) {
+        $date   = trim($rawDate);
+        $amount = floatval($customAmounts[$i] ?? 0);
+        // Valider format date YYYY-MM-DD (renvoyé par <input type="date">)
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || $amount <= 0) {
+            $URL .= '&return=error3';
+            header("Location: {$URL}");
+            exit;
+        }
+        $customSchedule[] = [
+            'installmentNumber' => $i + 1,
+            'label'             => 'Versement ' . ($i + 1),
+            'dueDate'           => $date,
+            'expectedAmount'    => $amount,
+        ];
+    }
+    $customScheduleJson = json_encode($customSchedule, JSON_UNESCAPED_UNICODE);
 }
 
 try {
@@ -102,7 +132,8 @@ try {
             $option,
             $paymentDate,
             $gibbonPersonIDCreatedBy,
-            $firstInstallmentDate
+            $firstInstallmentDate,
+            $customScheduleJson
         );
         // Re-fetch plan so the effective fee (with discount) is used below.
         $existingPlan = financeMgmtGetStudentPaymentPlan($connection2, $gibbonPersonIDStudent, $gibbonSchoolYearID);
