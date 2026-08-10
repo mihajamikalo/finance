@@ -216,9 +216,9 @@ echo $formHtml;
 // Le JS remonte depuis #paymentOption jusqu'au TR parent (max 5 niveaux).
 echo '
 <style>
-#fcPlanTr      { display: none !important; }
-#fcFirstInstTr { display: none !important; }
-#fcCustomPlanTr { display: none !important; }
+#fcPlanTr       { display: none; }
+#fcFirstInstTr  { display: none; }
+#fcCustomPlanTr { display: none; }
 </style>
 <script>
 (function () {
@@ -291,7 +291,7 @@ echo '
 
         // Date premier versement mensuel : seulement pour 4 ou 8 mensualités
         if (firstInstRow) {
-            firstInstRow.style.display = (val === "4" || val === "8") ? "" : "none";
+            firstInstRow.style.display = (val === "4" || val === "8") ? "table-row" : "none";
             if (val !== "4" && val !== "8") {
                 var df = document.getElementById("firstInstallmentDate");
                 if (df) df.value = "";
@@ -299,9 +299,10 @@ echo '
         }
 
         // Section plan libre
+        if (!customPlanRow) customPlanRow = document.getElementById("fcCustomPlanTr");
         if (customPlanRow) {
             if (val === "CUSTOM") {
-                customPlanRow.style.display = "";
+                customPlanRow.style.display = "table-row";
                 buildCustomRows(); // initialiser les lignes
             } else {
                 customPlanRow.style.display = "none";
@@ -384,7 +385,7 @@ echo '
 
     function showPlanRow() {
         if (!planRow) return;
-        planRow.style.display = "";
+        planRow.style.display = "table-row";
         var sel = document.getElementById("paymentOption");
         if (sel) sel.required = true;
         // onPlanChange gère l\'affichage des sous-sections.
