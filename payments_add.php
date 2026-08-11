@@ -161,6 +161,26 @@ echo '
 
   <table style="width:100%;border-collapse:collapse;">
 
+    <!-- Ligne : cours d\'echange EUR -> Ar -->
+    <tr>
+      <td style="padding:6px 16px 10px 0;vertical-align:top;width:35%;font-size:13px;font-weight:600;color:#3d4852;">
+        '.__('Cours d\'échange').'
+        <div style="font-weight:400;font-size:11px;color:#999;margin-top:2px;">'.__('Taux appliqué toute l\'année pour cet élève.').'</div>
+      </td>
+      <td style="padding:6px 0 10px 0;vertical-align:middle;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:13px;color:#555;font-weight:500;">1 € =</span>
+          <input type="number" name="exchangeRate" id="fcExchangeRate"
+                 form="financePaymentAdd"
+                 step="1" min="1" placeholder="ex : 4 800"
+                 style="padding:7px 12px;border:1px solid #ccd3db;border-radius:6px;font-size:14px;width:140px;background:#fff;">
+          <span style="font-size:13px;font-weight:700;color:#555;background:#f5f5f5;
+                       padding:7px 12px;border:1px solid #ddd;border-radius:6px;">Ar</span>
+          <span id="fcEuroPreview" style="font-size:12px;color:#888;font-style:italic;"></span>
+        </div>
+      </td>
+    </tr>
+
     <!-- Ligne : sélecteur de plan -->
     <tr>
       <td style="padding:6px 16px 6px 0;vertical-align:middle;width:35%;font-size:13px;font-weight:600;color:#3d4852;">
@@ -311,6 +331,23 @@ echo '
         });
         var el = document.getElementById("fcCustomTotal");
         if (el) el.textContent = total.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    /* ── Apercu en temps reel du cours d\'echange ───────────────────────── */
+    var exchInput   = document.getElementById("fcExchangeRate");
+    var exchPreview = document.getElementById("fcEuroPreview");
+    function updateExchPreview() {
+        if (!exchInput || !exchPreview) return;
+        var rate = parseFloat(exchInput.value);
+        if (rate > 0) {
+            exchPreview.textContent = "(1 000 € = " + (1000 * rate).toLocaleString("fr-FR") + " Ar)";
+        } else {
+            exchPreview.textContent = "";
+        }
+    }
+    if (exchInput) {
+        exchInput.addEventListener("input", updateExchPreview);
+        exchInput.addEventListener("change", updateExchPreview);
     }
 
     /* ── Event listeners sur le select du plan ─────────────────────────── */

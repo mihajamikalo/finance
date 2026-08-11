@@ -44,6 +44,7 @@ $paymentOption         = trim($_POST['paymentOption'] ?? '');
 $firstInstallmentDate  = Format::dateConvert($_POST['firstInstallmentDate'] ?? '');
 $customDates           = $_POST['customDates']   ?? [];
 $customAmounts         = $_POST['customAmounts'] ?? [];
+$exchangeRate          = floatval($_POST['exchangeRate'] ?? 0);
 $validMethods   = ['BANK', 'MOBILE', 'CASH', 'OTHER'];
 $paymentMethod  = in_array(trim($_POST['paymentMethod'] ?? ''), $validMethods, true)
                     ? trim($_POST['paymentMethod'])
@@ -81,12 +82,19 @@ $existingPlan  = financeMgmtGetStudentPaymentPlan($connection2, $gibbonPersonIDS
 $paymentCount  = financeMgmtCountStudentPayments($connection2, $gibbonPersonIDStudent, $gibbonSchoolYearID);
 $isFirstPayment = ($existingPlan === null && $paymentCount === 0);
 
-// Premier paiement : un plan valide est obligatoire.
+// Premier paiement : un plan valide et un cours d'échange positif sont obligatoires.
 $validOptions = ['FULL', '4', '8', 'CUSTOM'];
-if ($isFirstPayment && !in_array($paymentOption, $validOptions, true)) {
-    $URL .= '&return=error3';
-    header("Location: {$URL}");
-    exit;
+if ($isFirstPayment) {
+    if (!in_array($paymentOption, $validOptions, true)) {
+        $URL .= '&return=error3';
+        header("Location: {$URL}");
+        exit;
+    }
+    if ($exchangeRate <= 0) {
+        $URL .= '&return=error3';
+        header("Location: {$URL}");
+        exit;
+    }
 }
 
 // Pour un plan libre, valider et construire le JSON du calendrier.
@@ -123,17 +131,22 @@ try {
     // Create payment plan on first payment.
     if ($existingPlan === null) {
         $option = in_array($paymentOption, $validOptions, true) ? $paymentOption : 'LEGACY';
+        // Les frais sont stockés en euros ; on convertit en Ariary avec le cours saisi.
+        $tuitionFeeEuro = floatval($totals['totalFee']);
+        $tuitionFeeAr   = ($exchangeRate > 0) ? round($tuitionFeeEuro * $exchangeRate, 2) : $tuitionFeeEuro;
         financeMgmtCreateStudentPaymentPlan(
             $connection2,
             $gibbonPersonIDStudent,
             $gibbonSchoolYearID,
             $gibbonYearGroupID,
-            floatval($totals['totalFee']),
+            $tuitionFeeAr,
             $option,
             $paymentDate,
             $gibbonPersonIDCreatedBy,
             $firstInstallmentDate,
-            $customScheduleJson
+            $customScheduleJson,
+            $exchangeRate,
+            $tuitionFeeEuro
         );
         // Re-fetch plan so the effective fee (with discount) is used below.
         $existingPlan = financeMgmtGetStudentPaymentPlan($connection2, $gibbonPersonIDStudent, $gibbonSchoolYearID);

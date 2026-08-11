@@ -97,3 +97,15 @@ $count++;
 $sql[$count][0] = "1.6.00";
 $sql[$count][1] = "ALTER TABLE `gibbonFinanceMgmtPaymentPlan`
   ADD COLUMN `customSchedule` TEXT DEFAULT NULL AFTER `firstInstallmentDate`;end";
+
+// v1.7.00 – Frais en euros + cours d'échange EUR→Ar verrouillé au 1er paiement
+$count++;
+$sql[$count][0] = "1.7.00";
+$sql[$count][1] = "ALTER TABLE `gibbonFinanceMgmtPaymentPlan`
+  ADD COLUMN `exchangeRate`   decimal(10,4) DEFAULT NULL
+    COMMENT 'Cours EUR->Ar saisi au premier paiement'
+  AFTER `customSchedule`;end
+ALTER TABLE `gibbonFinanceMgmtPaymentPlan`
+  ADD COLUMN `tuitionFeeEuro` decimal(14,2) DEFAULT NULL
+    COMMENT 'Frais de scolarite en euros au moment du plan'
+  AFTER `exchangeRate`;end";

@@ -509,7 +509,9 @@ function financeMgmtCreateStudentPaymentPlan(
     string $planStartDate,
     int    $gibbonPersonIDCreatedBy,
     string $firstInstallmentDate = '',
-    string $customScheduleJson   = ''
+    string $customScheduleJson   = '',
+    float  $exchangeRate         = 0.0,
+    float  $tuitionFeeEuro       = 0.0
 ): int {
     $discountRate     = 0.0;
     $installmentCount = 0;
@@ -569,6 +571,10 @@ function financeMgmtCreateStudentPaymentPlan(
     // Stocker le calendrier personnalisé pour les plans CUSTOM.
     $customScheduleValue = ($planType === 'CUSTOM' && $customScheduleJson !== '') ? $customScheduleJson : null;
 
+    // Stocker le cours d'échange et le montant en euros pour traçabilité.
+    $exchangeRateValue   = ($exchangeRate > 0) ? $exchangeRate : null;
+    $tuitionFeeEuroValue = ($tuitionFeeEuro > 0) ? $tuitionFeeEuro : null;
+
     $stmt = $connection2->prepare(
         "INSERT INTO gibbonFinanceMgmtPaymentPlan
          SET gibbonPersonIDStudent=:student,
@@ -585,6 +591,8 @@ function financeMgmtCreateStudentPaymentPlan(
              planStartDate=:startDate,
              firstInstallmentDate=:firstInstDate,
              customSchedule=:customSchedule,
+             exchangeRate=:exchangeRate,
+             tuitionFeeEuro=:tuitionFeeEuro,
              status='ACTIVE',
              gibbonPersonIDCreatedBy=:createdBy,
              createdAt=:now,
@@ -605,6 +613,8 @@ function financeMgmtCreateStudentPaymentPlan(
         'startDate'      => $planStartDate,
         'firstInstDate'  => $firstInstallmentDateValue,
         'customSchedule' => $customScheduleValue,
+        'exchangeRate'   => $exchangeRateValue,
+        'tuitionFeeEuro' => $tuitionFeeEuroValue,
         'createdBy'      => $gibbonPersonIDCreatedBy,
         'now'            => $now,
     ]);
